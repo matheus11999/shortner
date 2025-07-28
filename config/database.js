@@ -275,10 +275,12 @@ class DatabaseManager {
 // Export singleton instance
 const databaseManager = new DatabaseManager();
 
-// Auto-initialize on import
+// Auto-initialize on import with better error handling
 databaseManager.initialize().catch(err => {
   console.error('🚨 Failed to initialize database:', err);
-  process.exit(1);
+  console.error('Stack:', err.stack);
+  // Don't exit process - let server start but log errors
+  console.log('⚠️ Server starting without database connection');
 });
 
 module.exports = databaseManager;
