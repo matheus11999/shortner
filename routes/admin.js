@@ -7,25 +7,25 @@ const { authenticateToken, requireAdmin, authenticateApiToken } = require('../mi
 const router = express.Router();
 
 // Clientes
-router.get('/clients', authenticateToken, requireAdmin, (req, res) => {
+router.get('/clients', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const clients = database.all(
+    const clients = await database.all(
       `SELECT u.id, u.email, u.name, u.custom_cpm, u.created_at,
               COUNT(cs.id) as site_count
        FROM users u
        LEFT JOIN client_sites cs ON u.id = cs.user_id
        WHERE u.role = 'client'
-       GROUP BY u.id
+       GROUP BY u.id, u.email, u.name, u.custom_cpm, u.created_at
        ORDER BY u.created_at DESC`
     );
     res.json(clients);
   } catch (err) {
-    console.error('Database error:', err);
-    res.status(500).json({ error: 'Database error' });
+    console.error('🚨 Database error:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
   }
 });
 
-router.post('/clients', authenticateToken, requireAdmin, (req, res) => {
+router.post('/clients', authenticateToken, requireAdmin, async (req, res) => {
   const { email, password, name, customCpm = 0 } = req.body;
 
   if (!email || !password || !name) {
@@ -36,28 +36,28 @@ router.post('/clients', authenticateToken, requireAdmin, (req, res) => {
     const hashedPassword = bcrypt.hashSync(password, 10);
     const apiToken = uuidv4();
 
-    const result = database.run(
-      'INSERT INTO users (email, password, name, role, custom_cpm, api_token) VALUES (?, ?, ?, ?, ?, ?)',
+    const result = await database.query(
+      'INSERT INTO users (email, password, name, role, custom_cpm, api_token) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
       [email, hashedPassword, name, 'client', customCpm, apiToken]
     );
 
     res.status(201).json({
-      id: result.lastInsertRowid,
+      id: result.rows[0].id,
       email,
       name,
       customCpm,
       apiToken
     });
   } catch (err) {
-    console.error('Database error:', err);
-    if (err.message.includes('UNIQUE constraint failed')) {
+    console.error('🚨 Database error:', err);
+    if (err.message.includes('duplicate key')) {
       return res.status(400).json({ error: 'Email already exists' });
     }
-    res.status(500).json({ error: 'Database error' });
+    res.status(500).json({ error: 'Database error', details: err.message });
   }
 });
 
-router.put('/clients/:id', authenticateToken, requireAdmin, (req, res) => {
+router.put('/clients/:id', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { name, customCpm, email } = req.body;
 
@@ -66,78 +66,62 @@ router.put('/clients/:id', authenticateToken, requireAdmin, (req, res) => {
   }
 
   try {
-    const result = database.run(
-      'UPDATE users SET name = ?, custom_cpm = ?, email = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND role = ?',
+    const result = await database.query(
+      'UPDATE users SET name = $1, custom_cpm = $2, email = $3, updated_at = NOW() WHERE id = $4 AND role = $5',
       [name, customCpm || 0, email, parseInt(id), 'client']
     );
 
-    if (result.changes === 0) {
+    if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Client not found' });
     }
 
     res.json({ message: 'Client updated successfully' });
   } catch (err) {
-    console.error('Database error:', err);
-    res.status(500).json({ error: 'Database error: ' + err.message });
+    console.error('🚨 Database error:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
   }
 });
 
-router.delete('/clients/:id', authenticateToken, requireAdmin, (req, res) => {
+router.delete('/clients/:id', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
 
   try {
-    const result = database.run(
-      'DELETE FROM users WHERE id = ? AND role = "client"',
-      [id]
+    const result = await database.query(
+      'DELETE FROM users WHERE id = $1 AND role = $2',
+      [id, 'client']
     );
 
-    if (result.changes === 0) {
+    if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Client not found' });
     }
 
     res.json({ message: 'Client deleted successfully' });
   } catch (err) {
-    console.error('Database error:', err);
-    res.status(500).json({ error: 'Database error' });
+    console.error('🚨 Database error:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
   }
 });
 
 // AdSites
-router.get('/adsites', authenticateToken, requireAdmin, (req, res) => {
+router.get('/adsites', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const adsites = database.all(
-      `SELECT a.id, a.name, a.url, a.api_token, a.banner_code, a.forced_click, a.timer_duration, a.wp_api_url, a.wp_token, a.status, a.created_at, COUNT(ad.id) as ad_count
+    const adsites = await database.all(
+      `SELECT a.*, 
+              COUNT(cs.id) as assigned_sites_count
        FROM adsites a
-       LEFT JOIN advertisements ad ON a.id = ad.adsite_id
-       GROUP BY a.id
+       LEFT JOIN client_sites cs ON a.id = cs.assigned_adsite_id
+       GROUP BY a.id, a.name, a.url, a.api_token, a.banner_code, a.forced_click, a.timer_duration, a.wp_api_url, a.wp_token, a.status, a.created_at, a.updated_at
        ORDER BY a.created_at DESC`
     );
-    
-    // Convert snake_case to camelCase for frontend
-    const formattedAdsites = adsites.map(adsite => ({
-      id: adsite.id,
-      name: adsite.name,
-      url: adsite.url,
-      apiToken: adsite.api_token,
-      bannerCode: adsite.banner_code,
-      forcedClick: adsite.forced_click === 1,
-      timerDuration: adsite.timer_duration,
-      wpApiUrl: adsite.wp_api_url,
-      wpToken: adsite.wp_token,
-      status: adsite.status,
-      createdAt: adsite.created_at,
-      adCount: adsite.ad_count
-    }));
-    
-    res.json(formattedAdsites);
+    res.json(adsites);
   } catch (err) {
-    console.error('Database error:', err);
-    res.status(500).json({ error: 'Database error' });
+    console.error('🚨 Database error:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
   }
 });
 
-router.post('/adsites', authenticateToken, requireAdmin, (req, res) => {
-  const { name, url, forcedClick, timerDuration } = req.body;
+router.post('/adsites', authenticateToken, requireAdmin, async (req, res) => {
+  const { name, url, forcedClick, timerDuration, wpApiUrl, wpToken } = req.body;
 
   if (!name || !url) {
     return res.status(400).json({ error: 'Name and URL are required' });
@@ -146,288 +130,153 @@ router.post('/adsites', authenticateToken, requireAdmin, (req, res) => {
   try {
     const apiToken = uuidv4();
     
-    const result = database.run(
-      'INSERT INTO adsites (name, url, api_token, forced_click, timer_duration) VALUES (?, ?, ?, ?, ?)',
-      [name, url, apiToken, forcedClick ? 1 : 0, timerDuration || 5]
+    const result = await database.query(
+      'INSERT INTO adsites (name, url, api_token, forced_click, timer_duration, wp_api_url, wp_token) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+      [name, url, apiToken, forcedClick || false, timerDuration || 5, wpApiUrl, wpToken]
     );
 
     res.status(201).json({
-      id: result.lastInsertRowid,
+      id: result.rows[0].id,
       name,
       url,
       apiToken,
+      forcedClick: forcedClick || false,
+      timerDuration: timerDuration || 5,
+      wpApiUrl,
       status: 'active',
-      createdAt: new Date().toISOString(),
-      adCount: 0
+      createdAt: new Date().toISOString()
     });
   } catch (err) {
-    console.error('Database error:', err);
-    res.status(500).json({ error: 'Database error' });
+    console.error('🚨 Database error:', err);
+    if (err.message.includes('duplicate key')) {
+      return res.status(400).json({ error: 'AdSite with this name already exists' });
+    }
+    res.status(500).json({ error: 'Database error', details: err.message });
   }
 });
 
-router.put('/adsites/:id', authenticateToken, requireAdmin, (req, res) => {
+router.put('/adsites/:id', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { name, url, forcedClick, timerDuration, wpApiUrl, wpToken, status } = req.body;
 
   try {
-    const result = database.run(
-      'UPDATE adsites SET name = ?, url = ?, forced_click = ?, timer_duration = ?, wp_api_url = ?, wp_token = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-      [name, url, forcedClick ? 1 : 0, timerDuration || 5, wpApiUrl || null, wpToken || null, status || 'active', id]
+    const result = await database.query(
+      'UPDATE adsites SET name = $1, url = $2, forced_click = $3, timer_duration = $4, wp_api_url = $5, wp_token = $6, status = $7, updated_at = NOW() WHERE id = $8',
+      [name, url, forcedClick || false, timerDuration || 5, wpApiUrl, wpToken, status || 'active', id]
     );
 
-    if (result.changes === 0) {
-      return res.status(404).json({ error: 'Adsite not found' });
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'AdSite not found' });
     }
 
-    res.json({ message: 'Adsite updated successfully' });
+    res.json({ message: 'AdSite updated successfully' });
   } catch (err) {
-    console.error('Database error:', err);
-    res.status(500).json({ error: 'Database error' });
+    console.error('🚨 Database error:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
   }
 });
 
-router.delete('/adsites/:id', authenticateToken, requireAdmin, (req, res) => {
+router.delete('/adsites/:id', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
 
   try {
-    const result = database.run('DELETE FROM adsites WHERE id = ?', [id]);
+    const result = await database.query('DELETE FROM adsites WHERE id = $1', [id]);
 
-    if (result.changes === 0) {
-      return res.status(404).json({ error: 'Adsite not found' });
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'AdSite not found' });
     }
 
-    res.json({ message: 'Adsite deleted successfully' });
+    res.json({ message: 'AdSite deleted successfully' });
   } catch (err) {
-    console.error('Database error:', err);
-    res.status(500).json({ error: 'Database error' });
+    console.error('🚨 Database error:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
   }
 });
 
-// Advertisements
-router.get('/advertisements', authenticateToken, requireAdmin, (req, res) => {
-  const { adsiteId } = req.query;
-
-  try {
-    let query = `
-      SELECT ad.*, a.name as adsite_name
-      FROM advertisements ad
-      JOIN adsites a ON ad.adsite_id = a.id
-    `;
-    let params = [];
-
-    if (adsiteId) {
-      query += ' WHERE ad.adsite_id = ?';
-      params.push(adsiteId);
-    }
-
-    query += ' ORDER BY ad.adsite_id, ad.step, ad.position';
-
-    const ads = database.all(query, params);
-    res.json(ads);
-  } catch (err) {
-    console.error('Database error:', err);
-    res.status(500).json({ error: 'Database error' });
-  }
-});
-
-router.post('/advertisements', authenticateToken, requireAdmin, (req, res) => {
-  const { adsiteId, type, content, redirectUrl, step, position = 0 } = req.body;
-
-  if (!adsiteId || !type || !content || !step) {
-    return res.status(400).json({ error: 'Adsite ID, type, content, and step are required' });
-  }
-
-  try {
-    const result = database.run(
-      'INSERT INTO advertisements (adsite_id, type, content, redirect_url, step, position) VALUES (?, ?, ?, ?, ?, ?)',
-      [adsiteId, type, content, redirectUrl || null, step, position]
-    );
-
-    res.status(201).json({
-      id: result.lastInsertRowid,
-      adsiteId,
-      type,
-      content,
-      redirectUrl,
-      step,
-      position
-    });
-  } catch (err) {
-    console.error('Database error:', err);
-    res.status(500).json({ error: 'Database error' });
-  }
-});
-
-router.put('/advertisements/:id', authenticateToken, requireAdmin, (req, res) => {
-  const { id } = req.params;
-  const { type, content, redirectUrl, step, position, status } = req.body;
-
-  try {
-    const result = database.run(
-      'UPDATE advertisements SET type = ?, content = ?, redirect_url = ?, step = ?, position = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-      [type, content, redirectUrl || null, step, position, status || 'active', id]
-    );
-
-    if (result.changes === 0) {
-      return res.status(404).json({ error: 'Advertisement not found' });
-    }
-
-    res.json({ message: 'Advertisement updated successfully' });
-  } catch (err) {
-    console.error('Database error:', err);
-    res.status(500).json({ error: 'Database error' });
-  }
-});
-
-router.delete('/advertisements/:id', authenticateToken, requireAdmin, (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const result = database.run('DELETE FROM advertisements WHERE id = ?', [id]);
-
-    if (result.changes === 0) {
-      return res.status(404).json({ error: 'Advertisement not found' });
-    }
-
-    res.json({ message: 'Advertisement deleted successfully' });
-  } catch (err) {
-    console.error('Database error:', err);
-    res.status(500).json({ error: 'Database error' });
-  }
-});
-
-// Download WordPress Plugin
-router.get('/wordpress-plugin', authenticateToken, requireAdmin, (req, res) => {
-  const path = require('path');
-  const fs = require('fs');
-  const archiver = require('archiver');
-  
-  try {
-    const pluginPath = path.join(__dirname, '../../wordpress-plugin');
-    
-    res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', 'attachment; filename="url-shortener-adsite.zip"');
-    
-    const archive = archiver('zip', { zlib: { level: 9 } });
-    archive.pipe(res);
-    archive.directory(pluginPath, 'url-shortener-adsite');
-    archive.finalize();
-  } catch (err) {
-    console.error('Plugin download error:', err);
-    res.status(500).json({ error: 'Error generating plugin download' });
-  }
-});
-
-// Banner Configurations
-router.get('/banner-configs/:adsiteId', authenticateToken, requireAdmin, (req, res) => {
+// Banner Configs
+router.get('/banner-configs/:adsiteId', authenticateToken, requireAdmin, async (req, res) => {
   const { adsiteId } = req.params;
-  const { step } = req.query;
 
   try {
-    let query = 'SELECT * FROM banner_configs WHERE adsite_id = ?';
-    let params = [adsiteId];
-
-    if (step) {
-      query += ' AND step = ?';
-      params.push(step);
-    }
-
-    query += ' ORDER BY step, banner_type, position';
-
-    const configs = database.all(query, params);
+    const configs = await database.all(
+      'SELECT * FROM banner_configs WHERE adsite_id = $1 ORDER BY step, banner_type, position',
+      [adsiteId]
+    );
     res.json(configs);
   } catch (err) {
-    console.error('Database error:', err);
-    res.status(500).json({ error: 'Database error' });
+    console.error('🚨 Database error:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
   }
 });
 
-router.post('/banner-configs', authenticateToken, requireAdmin, (req, res) => {
-  const { adsiteId, step, banners } = req.body;
+router.post('/banner-configs', authenticateToken, requireAdmin, async (req, res) => {
+  const { adsiteId, configs } = req.body;
 
-  if (!adsiteId || !step || !banners) {
-    return res.status(400).json({ error: 'AdSite ID, step, and banners configuration are required' });
+  if (!adsiteId || !configs || !Array.isArray(configs)) {
+    return res.status(400).json({ error: 'AdSite ID and configs array are required' });
   }
 
   try {
-    // Primeiro, remover configurações existentes para este adsite e step
-    database.run('DELETE FROM banner_configs WHERE adsite_id = ? AND step = ?', [adsiteId, step]);
+    // Delete existing configs for this adsite
+    await database.query('DELETE FROM banner_configs WHERE adsite_id = $1', [adsiteId]);
 
-    // Inserir novas configurações
-    const insertStmt = database.prepare(`
-      INSERT INTO banner_configs (adsite_id, step, banner_type, position, code, active)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-
-    // Banners 300x250 (3 unidades)
-    banners['300x250'].forEach((code, index) => {
-      if (code && code.trim()) {
-        insertStmt.run(adsiteId, step, '300x250', index + 1, code.trim(), 1);
+    // Insert new configs
+    for (const config of configs) {
+      if (config.code && config.code.trim()) {
+        await database.query(
+          'INSERT INTO banner_configs (adsite_id, step, banner_type, position, code, active) VALUES ($1, $2, $3, $4, $5, $6)',
+          [adsiteId, config.step, config.banner_type, config.position, config.code, config.active !== false]
+        );
       }
-    });
+    }
 
-    // Banners 728x90 (2 unidades)
-    banners['728x90'].forEach((code, index) => {
-      if (code && code.trim()) {
-        insertStmt.run(adsiteId, step, '728x90', index + 1, code.trim(), 1);
-      }
-    });
-
-    // Banner 300x600 (1 unidade)
-    banners['300x600'].forEach((code, index) => {
-      if (code && code.trim()) {
-        insertStmt.run(adsiteId, step, '300x600', index + 1, code.trim(), 1);
-      }
-    });
-
-    res.json({ message: 'Banner configuration saved successfully' });
+    res.json({ message: 'Banner configurations saved successfully' });
   } catch (err) {
-    console.error('Database error:', err);
-    res.status(500).json({ error: 'Database error' });
+    console.error('🚨 Database error:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
   }
 });
 
-router.put('/banner-configs/:id', authenticateToken, requireAdmin, (req, res) => {
+router.put('/banner-configs/:id', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { code, active } = req.body;
 
   try {
-    const result = database.run(
-      'UPDATE banner_configs SET code = ?, active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-      [code, active ? 1 : 0, id]
+    const result = await database.query(
+      'UPDATE banner_configs SET code = $1, active = $2, updated_at = NOW() WHERE id = $3',
+      [code, active !== false, id]
     );
 
-    if (result.changes === 0) {
+    if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Banner configuration not found' });
     }
 
     res.json({ message: 'Banner configuration updated successfully' });
   } catch (err) {
-    console.error('Database error:', err);
-    res.status(500).json({ error: 'Database error' });
+    console.error('🚨 Database error:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
   }
 });
 
-router.delete('/banner-configs/:id', authenticateToken, requireAdmin, (req, res) => {
+router.delete('/banner-configs/:id', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
 
   try {
-    const result = database.run('DELETE FROM banner_configs WHERE id = ?', [id]);
+    const result = await database.query('DELETE FROM banner_configs WHERE id = $1', [id]);
 
-    if (result.changes === 0) {
+    if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Banner configuration not found' });
     }
 
     res.json({ message: 'Banner configuration deleted successfully' });
   } catch (err) {
-    console.error('Database error:', err);
-    res.status(500).json({ error: 'Database error' });
+    console.error('🚨 Database error:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
   }
 });
 
 // Client Sites Management (Admin)
-router.get('/client-sites', authenticateToken, requireAdmin, (req, res) => {
+router.get('/client-sites', authenticateToken, requireAdmin, async (req, res) => {
   const { clientId } = req.query;
 
   try {
@@ -441,7 +290,7 @@ router.get('/client-sites', authenticateToken, requireAdmin, (req, res) => {
     let params = [];
 
     if (clientId) {
-      query += ' AND cs.user_id = ?';
+      query += ' AND cs.user_id = $1';
       params.push(clientId);
     }
 
@@ -450,17 +299,17 @@ router.get('/client-sites', authenticateToken, requireAdmin, (req, res) => {
     console.log('Executing query:', query);
     console.log('With params:', params);
     
-    const sites = database.all(query, params);
+    const sites = await database.all(query, params);
     console.log('Query result:', sites);
     res.json(sites);
   } catch (err) {
-    console.error('Database error in client-sites:', err);
+    console.error('🚨 Database error in client-sites:', err);
     console.error('Error stack:', err.stack);
     res.status(500).json({ error: 'Database error', details: err.message });
   }
 });
 
-router.post('/client-sites', authenticateToken, requireAdmin, (req, res) => {
+router.post('/client-sites', authenticateToken, requireAdmin, async (req, res) => {
   const { userId, name, url, assignedAdsiteId, magnetIntercept } = req.body;
 
   if (!userId || !name || !url) {
@@ -471,68 +320,68 @@ router.post('/client-sites', authenticateToken, requireAdmin, (req, res) => {
     // Gerar código de integração único
     const integrationCode = uuidv4();
     
-    const result = database.run(
-      'INSERT INTO client_sites (user_id, name, url, assigned_adsite_id, integration_code, magnet_intercept) VALUES (?, ?, ?, ?, ?, ?)',
-      [userId, name, url, assignedAdsiteId || null, integrationCode, magnetIntercept ? 1 : 0]
+    const result = await database.query(
+      'INSERT INTO client_sites (user_id, name, url, assigned_adsite_id, integration_code, magnet_intercept) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+      [userId, name, url, assignedAdsiteId || null, integrationCode, magnetIntercept !== false]
     );
 
     res.status(201).json({
-      id: result.lastInsertRowid,
+      id: result.rows[0].id,
       userId,
       name,
       url,
       assignedAdsiteId,
       integrationCode,
-      magnetIntercept: magnetIntercept ? 1 : 0,
+      magnetIntercept: magnetIntercept !== false,
       status: 'active',
       createdAt: new Date().toISOString()
     });
   } catch (err) {
-    console.error('Database error:', err);
-    res.status(500).json({ error: 'Database error' });
+    console.error('🚨 Database error:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
   }
 });
 
-router.put('/client-sites/:id', authenticateToken, requireAdmin, (req, res) => {
+router.put('/client-sites/:id', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { name, url, assignedAdsiteId, magnetIntercept, status } = req.body;
 
   try {
-    const result = database.run(
-      'UPDATE client_sites SET name = ?, url = ?, assigned_adsite_id = ?, magnet_intercept = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-      [name, url, assignedAdsiteId || null, magnetIntercept ? 1 : 0, status || 'active', id]
+    const result = await database.query(
+      'UPDATE client_sites SET name = $1, url = $2, assigned_adsite_id = $3, magnet_intercept = $4, status = $5, updated_at = NOW() WHERE id = $6',
+      [name, url, assignedAdsiteId || null, magnetIntercept !== false, status || 'active', id]
     );
 
-    if (result.changes === 0) {
+    if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Client site not found' });
     }
 
     res.json({ message: 'Client site updated successfully' });
   } catch (err) {
-    console.error('Database error:', err);
-    res.status(500).json({ error: 'Database error' });
+    console.error('🚨 Database error:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
   }
 });
 
-router.delete('/client-sites/:id', authenticateToken, requireAdmin, (req, res) => {
+router.delete('/client-sites/:id', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
 
   try {
-    const result = database.run('DELETE FROM client_sites WHERE id = ?', [id]);
+    const result = await database.query('DELETE FROM client_sites WHERE id = $1', [id]);
 
-    if (result.changes === 0) {
+    if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Client site not found' });
     }
 
     res.json({ message: 'Client site deleted successfully' });
   } catch (err) {
-    console.error('Database error:', err);
-    res.status(500).json({ error: 'Database error' });
+    console.error('🚨 Database error:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
   }
 });
 
 // WordPress Plugin specific routes using API Token authentication
-router.post('/wordpress/adsites', authenticateApiToken, requireAdmin, (req, res) => {
+router.post('/wordpress/adsites', authenticateApiToken, requireAdmin, async (req, res) => {
   const { name, url, forcedClick, timerDuration, wpApiUrl, wpToken } = req.body;
 
   if (!name || !url) {
@@ -542,47 +391,47 @@ router.post('/wordpress/adsites', authenticateApiToken, requireAdmin, (req, res)
   try {
     const apiToken = uuidv4();
     
-    const result = database.run(
-      'INSERT INTO adsites (name, url, api_token, forced_click, timer_duration, wp_api_url, wp_token) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [name, url, apiToken, forcedClick ? 1 : 0, timerDuration || 5, wpApiUrl, wpToken]
+    const result = await database.query(
+      'INSERT INTO adsites (name, url, api_token, forced_click, timer_duration, wp_api_url, wp_token) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+      [name, url, apiToken, forcedClick || false, timerDuration || 5, wpApiUrl, wpToken]
     );
 
     res.status(201).json({
-      id: result.lastInsertRowid,
+      id: result.rows[0].id,
       name,
       url,
       apiToken,
-      forcedClick: forcedClick ? 1 : 0,
+      forcedClick: forcedClick || false,
       timerDuration: timerDuration || 5,
       wpApiUrl,
       status: 'active',
       createdAt: new Date().toISOString()
     });
   } catch (err) {
-    console.error('Database error:', err);
-    if (err.message.includes('UNIQUE constraint failed')) {
+    console.error('🚨 Database error:', err);
+    if (err.message.includes('duplicate key')) {
       return res.status(400).json({ error: 'AdSite with this name already exists' });
     }
-    res.status(500).json({ error: 'Database error' });
+    res.status(500).json({ error: 'Database error', details: err.message });
   }
 });
 
-router.get('/wordpress/banner-configs/:adsiteId', authenticateApiToken, (req, res) => {
+router.get('/wordpress/banner-configs/:adsiteId', authenticateApiToken, async (req, res) => {
   const { adsiteId } = req.params;
 
   try {
-    const configs = database.all(
-      'SELECT * FROM banner_configs WHERE adsite_id = ? ORDER BY step, banner_type, position',
+    const configs = await database.all(
+      'SELECT * FROM banner_configs WHERE adsite_id = $1 ORDER BY step, banner_type, position',
       [adsiteId]
     );
     res.json(configs);
   } catch (err) {
-    console.error('Database error:', err);
-    res.status(500).json({ error: 'Database error' });
+    console.error('🚨 Database error:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
   }
 });
 
-router.post('/wordpress/sync-post', authenticateApiToken, (req, res) => {
+router.post('/wordpress/sync-post', authenticateApiToken, async (req, res) => {
   const postData = req.body;
   
   console.log('📝 WordPress post sync received:', postData.title);
@@ -592,8 +441,8 @@ router.post('/wordpress/sync-post', authenticateApiToken, (req, res) => {
   
   try {
     // Optional: Save to cache table if needed
-    // const result = database.run(
-    //   'INSERT OR REPLACE INTO wp_posts_cache (adsite_id, post_id, title, content, url) VALUES (?, ?, ?, ?, ?)',
+    // const result = await database.query(
+    //   'INSERT INTO wp_posts_cache (adsite_id, post_id, title, content, url) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (adsite_id, post_id) DO UPDATE SET title = $3, content = $4, url = $5, cached_at = NOW()',
     //   [req.user.id, postData.id, postData.title, postData.content, postData.url]
     // );
     

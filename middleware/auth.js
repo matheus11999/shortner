@@ -38,16 +38,16 @@ const requireClient = (req, res, next) => {
   next();
 };
 
-const authenticateApiToken = (req, res, next) => {
-  const apiToken = req.headers['x-api-token'];
+const authenticateApiToken = async (req, res, next) => {
+  const apiToken = req.headers['authorization']?.replace('Bearer ', '') || req.headers['x-api-token'];
   
   if (!apiToken) {
     return res.status(401).json({ error: 'API token required' });
   }
 
   try {
-    const user = database.get(
-      'SELECT id, email, role FROM users WHERE api_token = ?',
+    const user = await database.get(
+      'SELECT id, email, role FROM users WHERE api_token = $1',
       [apiToken]
     );
     
@@ -58,7 +58,8 @@ const authenticateApiToken = (req, res, next) => {
     req.user = user;
     next();
   } catch (err) {
-    return res.status(500).json({ error: 'Database error' });
+    console.error('🚨 API Token auth error:', err);
+    return res.status(500).json({ error: 'Database error', details: err.message });
   }
 };
 

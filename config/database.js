@@ -1,130 +1,157 @@
-const Database = require('better-sqlite3');
-const path = require('path');
-const fs = require('fs');
+const { Pool, Client } = require('pg');
+const bcrypt = require('bcryptjs');
 
-// Configurar banco de dados na pasta db/
-const dbPath = process.env.DB_PATH || path.join(__dirname, '../db/database.sqlite');
-
-// Garantir que a pasta db/ existe
-const dbDir = path.dirname(dbPath);
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
-  console.log('📁 Created database directory:', dbDir);
-}
+// Configuração da conexão PostgreSQL
+const getDatabaseUrl = () => {
+  // Produção: postgres://mateus:260520jm@evoapi_url-db:5432/url?sslmode=disable
+  // Desenvolvimento: postgres://mateus:260520jm@89.28.236.67:5555/url?sslmode=disable
+  
+  if (process.env.NODE_ENV === 'production') {
+    return process.env.DATABASE_URL || 'postgres://mateus:260520jm@evoapi_url-db:5432/url?sslmode=disable';
+  } else {
+    return process.env.DATABASE_URL || 'postgres://mateus:260520jm@89.28.236.67:5555/url?sslmode=disable';
+  }
+};
 
 class DatabaseManager {
   constructor() {
+    this.pool = null;
+    this.isInitialized = false;
+  }
+
+  async initialize() {
+    if (this.isInitialized) return;
+
+    const databaseUrl = getDatabaseUrl();
+    
     try {
-      this.db = new Database(dbPath);
-      console.log('🗄️ Connected to SQLite database at:', dbPath);
-      this.initTables();
+      this.pool = new Pool({
+        connectionString: databaseUrl,
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 2000,
+      });
+
+      // Test connection
+      const client = await this.pool.connect();
+      console.log(`🐘 Connected to PostgreSQL database`);
+      console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🔗 Database URL: ${databaseUrl.replace(/:[\w]+@/, ':***@')}`);
+      
+      client.release();
+
+      await this.initTables();
+      await this.createDefaultAdmin();
+      
+      this.isInitialized = true;
     } catch (err) {
-      console.error('Error opening database:', err.message);
+      console.error('🚨 Error connecting to PostgreSQL:', err.message);
+      throw err;
     }
   }
 
-  initTables() {
+  async initTables() {
     const tables = [
       `CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        email TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        role TEXT NOT NULL DEFAULT 'client',
-        name TEXT NOT NULL,
-        custom_cpm REAL DEFAULT 0,
-        api_token TEXT UNIQUE,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        role VARCHAR(50) NOT NULL DEFAULT 'client',
+        name VARCHAR(255) NOT NULL,
+        custom_cpm DECIMAL(10,2) DEFAULT 0,
+        api_token VARCHAR(255) UNIQUE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
       )`,
       
       `CREATE TABLE IF NOT EXISTS adsites (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        url TEXT NOT NULL,
-        api_token TEXT UNIQUE NOT NULL,
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        url VARCHAR(500) NOT NULL,
+        api_token VARCHAR(255) UNIQUE NOT NULL,
         banner_code TEXT,
-        forced_click BOOLEAN DEFAULT 0,
+        forced_click BOOLEAN DEFAULT FALSE,
         timer_duration INTEGER DEFAULT 5,
-        wp_api_url TEXT,
-        wp_token TEXT,
-        status TEXT DEFAULT 'active',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        wp_api_url VARCHAR(500),
+        wp_token VARCHAR(255),
+        status VARCHAR(50) DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
       )`,
       
       `CREATE TABLE IF NOT EXISTS client_sites (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL,
-        name TEXT NOT NULL,
-        url TEXT NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        url VARCHAR(500) NOT NULL,
         assigned_adsite_id INTEGER,
-        integration_code TEXT UNIQUE,
-        magnet_intercept BOOLEAN DEFAULT 1,
-        status TEXT DEFAULT 'active',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        integration_code VARCHAR(255) UNIQUE,
+        magnet_intercept BOOLEAN DEFAULT TRUE,
+        status VARCHAR(50) DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
         FOREIGN KEY (user_id) REFERENCES users (id),
         FOREIGN KEY (assigned_adsite_id) REFERENCES adsites (id)
       )`,
       
       `CREATE TABLE IF NOT EXISTS advertisements (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         adsite_id INTEGER NOT NULL,
-        type TEXT NOT NULL,
+        type VARCHAR(50) NOT NULL,
         content TEXT NOT NULL,
-        redirect_url TEXT,
+        redirect_url VARCHAR(500),
         step INTEGER NOT NULL,
         position INTEGER DEFAULT 0,
-        status TEXT DEFAULT 'active',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        status VARCHAR(50) DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
         FOREIGN KEY (adsite_id) REFERENCES adsites (id)
       )`,
       
       `CREATE TABLE IF NOT EXISTS site_adsites (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         site_id INTEGER NOT NULL,
         adsite_id INTEGER NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
         FOREIGN KEY (site_id) REFERENCES client_sites (id),
         FOREIGN KEY (adsite_id) REFERENCES adsites (id),
         UNIQUE(site_id, adsite_id)
       )`,
       
       `CREATE TABLE IF NOT EXISTS short_urls (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         original_url TEXT NOT NULL,
-        short_code TEXT UNIQUE NOT NULL,
+        short_code VARCHAR(20) UNIQUE NOT NULL,
         user_id INTEGER,
         site_id INTEGER,
         clicks INTEGER DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
         FOREIGN KEY (user_id) REFERENCES users (id),
         FOREIGN KEY (site_id) REFERENCES client_sites (id)
       )`,
       
       `CREATE TABLE IF NOT EXISTS click_analytics (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         short_url_id INTEGER NOT NULL,
         adsite_id INTEGER,
         user_id INTEGER,
         site_id INTEGER,
-        session_id TEXT NOT NULL,
-        ip_address TEXT,
+        session_id VARCHAR(255) NOT NULL,
+        ip_address INET,
         user_agent TEXT,
         referrer TEXT,
-        country TEXT,
-        city TEXT,
-        device_type TEXT,
-        browser TEXT,
-        os TEXT,
+        country VARCHAR(100),
+        city VARCHAR(100),
+        device_type VARCHAR(50),
+        browser VARCHAR(50),
+        os VARCHAR(50),
         step INTEGER NOT NULL,
-        action TEXT NOT NULL,
-        banner_clicked BOOLEAN DEFAULT 0,
+        action VARCHAR(100) NOT NULL,
+        banner_clicked BOOLEAN DEFAULT FALSE,
         time_spent INTEGER DEFAULT 0,
-        completed BOOLEAN DEFAULT 0,
-        clicked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        completed BOOLEAN DEFAULT FALSE,
+        clicked_at TIMESTAMP DEFAULT NOW(),
         FOREIGN KEY (short_url_id) REFERENCES short_urls (id),
         FOREIGN KEY (adsite_id) REFERENCES adsites (id),
         FOREIGN KEY (user_id) REFERENCES users (id),
@@ -132,113 +159,126 @@ class DatabaseManager {
       )`,
       
       `CREATE TABLE IF NOT EXISTS unique_visitors (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        session_id TEXT UNIQUE NOT NULL,
-        ip_address TEXT,
+        id SERIAL PRIMARY KEY,
+        session_id VARCHAR(255) UNIQUE NOT NULL,
+        ip_address INET,
         user_agent TEXT,
-        first_visit DATETIME DEFAULT CURRENT_TIMESTAMP,
-        last_visit DATETIME DEFAULT CURRENT_TIMESTAMP,
+        first_visit TIMESTAMP DEFAULT NOW(),
+        last_visit TIMESTAMP DEFAULT NOW(),
         visit_count INTEGER DEFAULT 1
       )`,
 
       `CREATE TABLE IF NOT EXISTS wp_posts_cache (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         adsite_id INTEGER NOT NULL,
         post_id INTEGER NOT NULL,
-        title TEXT NOT NULL,
+        title VARCHAR(500) NOT NULL,
         content TEXT NOT NULL,
-        url TEXT NOT NULL,
-        cached_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        url VARCHAR(500) NOT NULL,
+        cached_at TIMESTAMP DEFAULT NOW(),
         FOREIGN KEY (adsite_id) REFERENCES adsites (id)
       )`,
 
       `CREATE TABLE IF NOT EXISTS banner_configs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         adsite_id INTEGER NOT NULL,
         step INTEGER NOT NULL,
-        banner_type TEXT NOT NULL,
+        banner_type VARCHAR(50) NOT NULL,
         position INTEGER NOT NULL,
         code TEXT NOT NULL,
-        active BOOLEAN DEFAULT 1,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
         FOREIGN KEY (adsite_id) REFERENCES adsites (id),
         UNIQUE(adsite_id, step, banner_type, position)
       )`
     ];
 
-    tables.forEach((table, index) => {
+    let tablesCreated = 0;
+    for (const [index, table] of tables.entries()) {
       try {
-        this.db.exec(table);
+        await this.pool.query(table);
+        tablesCreated++;
       } catch (err) {
-        console.error(`Error creating table ${index + 1}:`, err.message);
+        console.error(`🚨 Error creating table ${index + 1}:`, err.message);
       }
-    });
+    }
 
-    this.createDefaultAdmin();
+    console.log(`📋 Database initialized with ${tablesCreated}/${tables.length} tables`);
   }
 
-  createDefaultAdmin() {
-    const bcrypt = require('bcryptjs');
+  async createDefaultAdmin() {
     const adminEmail = 'admin@urlshortener.com';
     const adminPassword = 'admin123';
     
     try {
-      const stmt = this.db.prepare('SELECT id FROM users WHERE email = ?');
-      const row = stmt.get(adminEmail);
+      const result = await this.pool.query('SELECT id FROM users WHERE email = $1', [adminEmail]);
       
-      if (!row) {
+      if (result.rows.length === 0) {
         const hashedPassword = bcrypt.hashSync(adminPassword, 10);
-        const insertStmt = this.db.prepare(
-          'INSERT INTO users (email, password, role, name) VALUES (?, ?, ?, ?)'
+        await this.pool.query(
+          'INSERT INTO users (email, password, role, name) VALUES ($1, $2, $3, $4)',
+          [adminEmail, hashedPassword, 'admin', 'Administrator']
         );
-        insertStmt.run(adminEmail, hashedPassword, 'admin', 'Administrator');
-        console.log('Default admin user created');
-        console.log('Email:', adminEmail);
-        console.log('Password:', adminPassword);
+        console.log('✅ Default admin user created');
+        console.log('📧 Email:', adminEmail);
+        console.log('🔑 Password:', adminPassword);
+      } else {
+        console.log('👤 Admin user already exists, skipping creation');
       }
     } catch (err) {
-      console.error('Error creating admin user:', err.message);
+      console.error('🚨 Error creating admin user:', err.message);
     }
   }
 
-  getDB() {
-    return this.db;
+  async query(text, params) {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+    return this.pool.query(text, params);
   }
 
-  close() {
-    try {
-      this.db.close();
-      return Promise.resolve();
-    } catch (err) {
-      return Promise.reject(err);
+  async getClient() {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+    return this.pool.connect();
+  }
+
+  async close() {
+    if (this.pool) {
+      await this.pool.end();
+      console.log('🔌 PostgreSQL connection pool closed');
     }
   }
 
-  // Helper methods for better-sqlite3
-  prepare(sql) {
-    return this.db.prepare(sql);
+  // Helper methods for compatibility with existing code
+  async get(sql, params = []) {
+    const result = await this.query(sql, params);
+    return result.rows[0] || null;
   }
 
-  exec(sql) {
-    return this.db.exec(sql);
+  async all(sql, params = []) {
+    const result = await this.query(sql, params);
+    return result.rows;
   }
 
-  // Compatibility methods
-  run(sql, params = []) {
-    const stmt = this.db.prepare(sql);
-    return stmt.run(...params);
-  }
-
-  get(sql, params = []) {
-    const stmt = this.db.prepare(sql);
-    return stmt.get(...params);
-  }
-
-  all(sql, params = []) {
-    const stmt = this.db.prepare(sql);
-    return stmt.all(...params);
+  async run(sql, params = []) {
+    const result = await this.query(sql, params);
+    return {
+      lastInsertRowid: result.rows[0]?.id || null,
+      changes: result.rowCount
+    };
   }
 }
 
-module.exports = new DatabaseManager();
+// Export singleton instance
+const databaseManager = new DatabaseManager();
+
+// Auto-initialize on import
+databaseManager.initialize().catch(err => {
+  console.error('🚨 Failed to initialize database:', err);
+  process.exit(1);
+});
+
+module.exports = databaseManager;

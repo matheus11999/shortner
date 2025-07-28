@@ -7,7 +7,7 @@ const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
   console.log('🔐 Login attempt for:', email);
@@ -19,7 +19,7 @@ router.post('/login', (req, res) => {
   }
 
   try {
-    const user = database.get('SELECT * FROM users WHERE email = ?', [email]);
+    const user = await database.get('SELECT * FROM users WHERE email = $1', [email]);
     console.log('👤 User found:', !!user);
 
     if (!user) {
@@ -61,7 +61,7 @@ router.post('/login', (req, res) => {
   }
 });
 
-router.post('/register', (req, res) => {
+router.post('/register', async (req, res) => {
   const { email, password, name } = req.body;
 
   if (!email || !password || !name) {
@@ -76,38 +76,40 @@ router.post('/register', (req, res) => {
   const apiToken = uuidv4();
 
   try {
-    const result = database.run(
-      'INSERT INTO users (email, password, name, role, api_token) VALUES (?, ?, ?, ?, ?)',
+    const result = await database.query(
+      'INSERT INTO users (email, password, name, role, api_token) VALUES ($1, $2, $3, $4, $5) RETURNING id',
       [email, hashedPassword, name, 'client', apiToken]
     );
 
+    const jwtSecret = process.env.JWT_SECRET || 'default-dev-secret-change-in-production';
     const token = jwt.sign(
-      { id: result.lastInsertRowid, email, role: 'client' },
-      process.env.JWT_SECRET,
+      { id: result.rows[0].id, email, role: 'client' },
+      jwtSecret,
       { expiresIn: '24h' }
     );
 
     res.status(201).json({
       token,
       user: {
-        id: result.lastInsertRowid,
+        id: result.rows[0].id,
         email,
         name,
         role: 'client'
       }
     });
   } catch (err) {
-    if (err.message.includes('UNIQUE constraint failed')) {
+    if (err.message.includes('duplicate key')) {
       return res.status(400).json({ error: 'Email already exists' });
     }
-    return res.status(500).json({ error: 'Database error' });
+    console.error('🚨 Register error:', err);
+    return res.status(500).json({ error: 'Database error', details: err.message });
   }
 });
 
-router.get('/me', authenticateToken, (req, res) => {
+router.get('/me', authenticateToken, async (req, res) => {
   try {
-    const user = database.get(
-      'SELECT id, email, name, role, custom_cpm, api_token FROM users WHERE id = ?',
+    const user = await database.get(
+      'SELECT id, email, name, role, custom_cpm, api_token FROM users WHERE id = $1',
       [req.user.id]
     );
 
@@ -124,12 +126,13 @@ router.get('/me', authenticateToken, (req, res) => {
       apiToken: user.api_token
     });
   } catch (err) {
-    return res.status(500).json({ error: 'Database error' });
+    console.error('🚨 Get user error:', err);
+    return res.status(500).json({ error: 'Database error', details: err.message });
   }
 });
 
 // Endpoint específico para WordPress Plugin usando API Token
-router.get('/me-api', (req, res) => {
+router.get('/me-api', async (req, res) => {
   const apiToken = req.headers['authorization']?.replace('Bearer ', '') || req.headers['x-api-token'];
   
   console.log('🔗 WordPress plugin auth attempt');
@@ -141,8 +144,8 @@ router.get('/me-api', (req, res) => {
   }
 
   try {
-    const user = database.get(
-      'SELECT id, email, name, role, custom_cpm, api_token FROM users WHERE api_token = ?',
+    const user = await database.get(
+      'SELECT id, email, name, role, custom_cpm, api_token FROM users WHERE api_token = $1',
       [apiToken]
     );
     
@@ -165,14 +168,15 @@ router.get('/me-api', (req, res) => {
     });
   } catch (err) {
     console.error('🚨 WordPress auth error:', err);
-    return res.status(500).json({ error: 'Database error' });
+    return res.status(500).json({ error: 'Database error', details: err.message });
   }
 });
 
 router.post('/refresh-token', authenticateToken, (req, res) => {
+  const jwtSecret = process.env.JWT_SECRET || 'default-dev-secret-change-in-production';
   const token = jwt.sign(
     { id: req.user.id, email: req.user.email, role: req.user.role },
-    process.env.JWT_SECRET,
+    jwtSecret,
     { expiresIn: '24h' }
   );
 

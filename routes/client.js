@@ -7,30 +7,30 @@ const { authenticateToken, requireClient } = require('../middleware/auth');
 const router = express.Router();
 
 // Client Sites (para clientes visualizarem seus próprios sites)
-router.get('/sites', authenticateToken, (req, res) => {
+router.get('/sites', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.role === 'admin' ? req.query.userId : req.user.id;
     
-    const sites = database.all(`
+    const sites = await database.all(`
       SELECT cs.*, a.name as adsite_name, 
              COUNT(su.id) as url_count, 
              SUM(su.clicks) as total_clicks
       FROM client_sites cs
       LEFT JOIN adsites a ON cs.assigned_adsite_id = a.id
       LEFT JOIN short_urls su ON cs.id = su.site_id
-      WHERE cs.user_id = ? AND cs.status = 'active'
-      GROUP BY cs.id
+      WHERE cs.user_id = $1 AND cs.status = 'active'
+      GROUP BY cs.id, cs.user_id, cs.name, cs.url, cs.assigned_adsite_id, cs.integration_code, cs.magnet_intercept, cs.status, cs.created_at, cs.updated_at, a.name
       ORDER BY cs.created_at DESC
     `, [userId || req.user.id]);
 
     res.json(sites);
   } catch (err) {
-    console.error('Database error:', err);
-    res.status(500).json({ error: 'Database error' });
+    console.error('🚨 Database error:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
   }
 });
 
-router.post('/sites', authenticateToken, (req, res) => {
+router.post('/sites', authenticateToken, async (req, res) => {
   const { name, url } = req.body;
   const userId = req.user.role === 'admin' ? req.body.userId : req.user.id;
 
@@ -40,76 +40,77 @@ router.post('/sites', authenticateToken, (req, res) => {
 
   const integrationCode = generateIntegrationCode();
 
-  database.getDB().run(
-    'INSERT INTO client_sites (user_id, name, url, integration_code) VALUES (?, ?, ?, ?)',
-    [userId || req.user.id, name, url, integrationCode],
-    function(err) {
-      if (err) {
-        return res.status(500).json({ error: 'Database error' });
-      }
+  try {
+    const result = await database.query(
+      'INSERT INTO client_sites (user_id, name, url, integration_code) VALUES ($1, $2, $3, $4) RETURNING id',
+      [userId || req.user.id, name, url, integrationCode]
+    );
 
-      res.status(201).json({
-        id: this.lastID,
-        name,
-        url,
-        integrationCode
-      });
-    }
-  );
+    res.status(201).json({
+      id: result.rows[0].id,
+      name,
+      url,
+      integrationCode
+    });
+  } catch (err) {
+    console.error('🚨 Database error:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
+  }
 });
 
-router.put('/sites/:id', authenticateToken, (req, res) => {
+router.put('/sites/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { name, url, status } = req.body;
-  const userId = req.user.role === 'admin' ? req.body.userId : req.user.id;
 
-  let query = 'UPDATE client_sites SET name = ?, url = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
-  let params = [name, url, status || 'active', id];
+  try {
+    let query = 'UPDATE client_sites SET name = $1, url = $2, status = $3, updated_at = NOW() WHERE id = $4';
+    let params = [name, url, status || 'active', id];
 
-  if (req.user.role !== 'admin') {
-    query += ' AND user_id = ?';
-    params.push(req.user.id);
-  }
-
-  database.getDB().run(query, params, function(err) {
-    if (err) {
-      return res.status(500).json({ error: 'Database error' });
+    if (req.user.role !== 'admin') {
+      query += ' AND user_id = $5';
+      params.push(req.user.id);
     }
 
-    if (this.changes === 0) {
+    const result = await database.query(query, params);
+
+    if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Site not found' });
     }
 
     res.json({ message: 'Site updated successfully' });
-  });
+  } catch (err) {
+    console.error('🚨 Database error:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
+  }
 });
 
-router.delete('/sites/:id', authenticateToken, (req, res) => {
+router.delete('/sites/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
 
-  let query = 'DELETE FROM client_sites WHERE id = ?';
-  let params = [id];
+  try {
+    let query = 'DELETE FROM client_sites WHERE id = $1';
+    let params = [id];
 
-  if (req.user.role !== 'admin') {
-    query += ' AND user_id = ?';
-    params.push(req.user.id);
-  }
-
-  database.getDB().run(query, params, function(err) {
-    if (err) {
-      return res.status(500).json({ error: 'Database error' });
+    if (req.user.role !== 'admin') {
+      query += ' AND user_id = $2';
+      params.push(req.user.id);
     }
 
-    if (this.changes === 0) {
+    const result = await database.query(query, params);
+
+    if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Site not found' });
     }
 
     res.json({ message: 'Site deleted successfully' });
-  });
+  } catch (err) {
+    console.error('🚨 Database error:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
+  }
 });
 
 // Get integration code for a specific site
-router.get('/sites/:id/integration-code', authenticateToken, (req, res) => {
+router.get('/sites/:id/integration-code', authenticateToken, async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -117,16 +118,16 @@ router.get('/sites/:id/integration-code', authenticateToken, (req, res) => {
       SELECT cs.*, a.name as adsite_name, a.url as adsite_url
       FROM client_sites cs
       LEFT JOIN adsites a ON cs.assigned_adsite_id = a.id
-      WHERE cs.id = ?
+      WHERE cs.id = $1
     `;
     let params = [id];
 
     if (req.user.role !== 'admin') {
-      query += ' AND cs.user_id = ?';
+      query += ' AND cs.user_id = $2';
       params.push(req.user.id);
     }
 
-    const site = database.get(query, params);
+    const site = await database.get(query, params);
 
     if (!site) {
       return res.status(404).json({ error: 'Site not found' });
@@ -145,69 +146,68 @@ router.get('/sites/:id/integration-code', authenticateToken, (req, res) => {
       code: integrationCode
     });
   } catch (err) {
-    console.error('Database error:', err);
-    res.status(500).json({ error: 'Database error' });
+    console.error('🚨 Database error:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
   }
 });
 
-router.post('/sites/:id/regenerate-code', authenticateToken, (req, res) => {
+router.post('/sites/:id/regenerate-code', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const newCode = generateIntegrationCode();
 
-  let query = 'UPDATE client_sites SET integration_code = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
-  let params = [newCode, id];
+  try {
+    let query = 'UPDATE client_sites SET integration_code = $1, updated_at = NOW() WHERE id = $2';
+    let params = [newCode, id];
 
-  if (req.user.role !== 'admin') {
-    query += ' AND user_id = ?';
-    params.push(req.user.id);
-  }
-
-  database.getDB().run(query, params, function(err) {
-    if (err) {
-      return res.status(500).json({ error: 'Database error' });
+    if (req.user.role !== 'admin') {
+      query += ' AND user_id = $3';
+      params.push(req.user.id);
     }
 
-    if (this.changes === 0) {
+    const result = await database.query(query, params);
+
+    if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Site not found' });
     }
 
     const integrationScript = generateIntegrationScript(newCode);
     res.json({ code: integrationScript, integrationCode: newCode });
-  });
+  } catch (err) {
+    console.error('🚨 Database error:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
+  }
 });
 
-router.get('/sites/:id/analytics', authenticateToken, (req, res) => {
+router.get('/sites/:id/analytics', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { period = '7d' } = req.query;
 
   let dateFilter = '';
   switch (period) {
     case '24h':
-      dateFilter = "AND ca.clicked_at >= datetime('now', '-1 day')";
+      dateFilter = "AND ca.clicked_at >= NOW() - INTERVAL '1 day'";
       break;
     case '7d':
-      dateFilter = "AND ca.clicked_at >= datetime('now', '-7 days')";
+      dateFilter = "AND ca.clicked_at >= NOW() - INTERVAL '7 days'";
       break;
     case '30d':
-      dateFilter = "AND ca.clicked_at >= datetime('now', '-30 days')";
+      dateFilter = "AND ca.clicked_at >= NOW() - INTERVAL '30 days'";
       break;
     case '1y':
-      dateFilter = "AND ca.clicked_at >= datetime('now', '-1 year')";
+      dateFilter = "AND ca.clicked_at >= NOW() - INTERVAL '1 year'";
       break;
   }
 
-  let siteQuery = 'SELECT id FROM client_sites WHERE id = ?';
-  let siteParams = [id];
+  try {
+    let siteQuery = 'SELECT id FROM client_sites WHERE id = $1';
+    let siteParams = [id];
 
-  if (req.user.role !== 'admin') {
-    siteQuery += ' AND user_id = ?';
-    siteParams.push(req.user.id);
-  }
-
-  database.getDB().get(siteQuery, siteParams, (err, site) => {
-    if (err) {
-      return res.status(500).json({ error: 'Database error' });
+    if (req.user.role !== 'admin') {
+      siteQuery += ' AND user_id = $2';
+      siteParams.push(req.user.id);
     }
+
+    const site = await database.get(siteQuery, siteParams);
 
     if (!site) {
       return res.status(404).json({ error: 'Site not found' });
@@ -218,19 +218,19 @@ router.get('/sites/:id/analytics', authenticateToken, (req, res) => {
         SELECT COUNT(*) as count
         FROM click_analytics ca
         JOIN short_urls su ON ca.short_url_id = su.id
-        WHERE su.site_id = ? ${dateFilter}
+        WHERE su.site_id = $1 ${dateFilter}
       `,
       completedClicks: `
         SELECT COUNT(*) as count
         FROM click_analytics ca
         JOIN short_urls su ON ca.short_url_id = su.id
-        WHERE su.site_id = ? AND ca.completed = 1 ${dateFilter}
+        WHERE su.site_id = $1 AND ca.completed = true ${dateFilter}
       `,
       topCountries: `
         SELECT country, COUNT(*) as count
         FROM click_analytics ca
         JOIN short_urls su ON ca.short_url_id = su.id
-        WHERE su.site_id = ? AND country IS NOT NULL ${dateFilter}
+        WHERE su.site_id = $1 AND country IS NOT NULL ${dateFilter}
         GROUP BY country
         ORDER BY count DESC
         LIMIT 10
@@ -239,50 +239,33 @@ router.get('/sites/:id/analytics', authenticateToken, (req, res) => {
         SELECT DATE(ca.clicked_at) as date, COUNT(*) as clicks
         FROM click_analytics ca
         JOIN short_urls su ON ca.short_url_id = su.id
-        WHERE su.site_id = ? ${dateFilter}
+        WHERE su.site_id = $1 ${dateFilter}
         GROUP BY DATE(ca.clicked_at)
         ORDER BY date DESC
       `
     };
 
-    Promise.all([
-      new Promise((resolve, reject) => {
-        database.getDB().get(queries.totalClicks, [id], (err, result) => {
-          if (err) reject(err);
-          else resolve(result.count);
-        });
-      }),
-      new Promise((resolve, reject) => {
-        database.getDB().get(queries.completedClicks, [id], (err, result) => {
-          if (err) reject(err);
-          else resolve(result.count);
-        });
-      }),
-      new Promise((resolve, reject) => {
-        database.getDB().all(queries.topCountries, [id], (err, results) => {
-          if (err) reject(err);
-          else resolve(results);
-        });
-      }),
-      new Promise((resolve, reject) => {
-        database.getDB().all(queries.clicksByDate, [id], (err, results) => {
-          if (err) reject(err);
-          else resolve(results);
-        });
-      })
-    ]).then(([totalClicks, completedClicks, topCountries, clicksByDate]) => {
-      res.json({
-        totalClicks,
-        completedClicks,
-        conversionRate: totalClicks > 0 ? (completedClicks / totalClicks * 100).toFixed(2) : 0,
-        topCountries,
-        clicksByDate
-      });
-    }).catch(err => {
-      console.error('Analytics error:', err);
-      res.status(500).json({ error: 'Database error' });
+    const [totalClicksResult, completedClicksResult, topCountries, clicksByDate] = await Promise.all([
+      database.get(queries.totalClicks, [id]),
+      database.get(queries.completedClicks, [id]),
+      database.all(queries.topCountries, [id]),
+      database.all(queries.clicksByDate, [id])
+    ]);
+
+    const totalClicks = totalClicksResult.count;
+    const completedClicks = completedClicksResult.count;
+
+    res.json({
+      totalClicks,
+      completedClicks,
+      conversionRate: totalClicks > 0 ? (completedClicks / totalClicks * 100).toFixed(2) : 0,
+      topCountries,
+      clicksByDate
     });
-  });
+  } catch (err) {
+    console.error('🚨 Analytics error:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
+  }
 });
 
 function generateIntegrationCode() {
@@ -376,6 +359,10 @@ function generateMagnetInterceptorScript(site) {
 })();
 </script>
 <!-- Fim do URL Shortener Magnet Link Interceptor -->`.trim();
+}
+
+function generateIntegrationScript(code) {
+  return generateMagnetInterceptorScript({ integration_code: code });
 }
 
 module.exports = router;
