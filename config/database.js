@@ -1,14 +1,22 @@
 const Database = require('better-sqlite3');
 const path = require('path');
+const fs = require('fs');
 
-// Para produção, usar volume persistente
-const dbPath = process.env.DB_PATH || path.join(__dirname, '../database.sqlite');
+// Configurar banco de dados na pasta db/
+const dbPath = process.env.DB_PATH || path.join(__dirname, '../db/database.sqlite');
+
+// Garantir que a pasta db/ existe
+const dbDir = path.dirname(dbPath);
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+  console.log('📁 Created database directory:', dbDir);
+}
 
 class DatabaseManager {
   constructor() {
     try {
       this.db = new Database(dbPath);
-      console.log('Connected to SQLite database');
+      console.log('🗄️ Connected to SQLite database at:', dbPath);
       this.initTables();
     } catch (err) {
       console.error('Error opening database:', err.message);
