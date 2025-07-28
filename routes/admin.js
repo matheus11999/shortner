@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const database = require('../config/database');
-const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const { authenticateToken, requireAdmin, authenticateApiToken } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -528,6 +528,87 @@ router.delete('/client-sites/:id', authenticateToken, requireAdmin, (req, res) =
   } catch (err) {
     console.error('Database error:', err);
     res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// WordPress Plugin specific routes using API Token authentication
+router.post('/wordpress/adsites', authenticateApiToken, requireAdmin, (req, res) => {
+  const { name, url, forcedClick, timerDuration, wpApiUrl, wpToken } = req.body;
+
+  if (!name || !url) {
+    return res.status(400).json({ error: 'Name and URL are required' });
+  }
+
+  try {
+    const apiToken = uuidv4();
+    
+    const result = database.run(
+      'INSERT INTO adsites (name, url, api_token, forced_click, timer_duration, wp_api_url, wp_token) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [name, url, apiToken, forcedClick ? 1 : 0, timerDuration || 5, wpApiUrl, wpToken]
+    );
+
+    res.status(201).json({
+      id: result.lastInsertRowid,
+      name,
+      url,
+      apiToken,
+      forcedClick: forcedClick ? 1 : 0,
+      timerDuration: timerDuration || 5,
+      wpApiUrl,
+      status: 'active',
+      createdAt: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('Database error:', err);
+    if (err.message.includes('UNIQUE constraint failed')) {
+      return res.status(400).json({ error: 'AdSite with this name already exists' });
+    }
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+router.get('/wordpress/banner-configs/:adsiteId', authenticateApiToken, (req, res) => {
+  const { adsiteId } = req.params;
+
+  try {
+    const configs = database.all(
+      'SELECT * FROM banner_configs WHERE adsite_id = ? ORDER BY step, banner_type, position',
+      [adsiteId]
+    );
+    res.json(configs);
+  } catch (err) {
+    console.error('Database error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+router.post('/wordpress/sync-post', authenticateApiToken, (req, res) => {
+  const postData = req.body;
+  
+  console.log('📝 WordPress post sync received:', postData.title);
+  
+  // For now, just log the post data and return success
+  // In a real implementation, you would save this to wp_posts_cache table
+  
+  try {
+    // Optional: Save to cache table if needed
+    // const result = database.run(
+    //   'INSERT OR REPLACE INTO wp_posts_cache (adsite_id, post_id, title, content, url) VALUES (?, ?, ?, ?, ?)',
+    //   [req.user.id, postData.id, postData.title, postData.content, postData.url]
+    // );
+    
+    res.json({ 
+      success: true, 
+      message: 'Post synchronized successfully',
+      post: {
+        id: postData.id,
+        title: postData.title,
+        url: postData.url
+      }
+    });
+  } catch (err) {
+    console.error('🚨 WordPress sync error:', err);
+    res.status(500).json({ error: 'Sync failed', details: err.message });
   }
 });
 

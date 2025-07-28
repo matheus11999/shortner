@@ -128,6 +128,47 @@ router.get('/me', authenticateToken, (req, res) => {
   }
 });
 
+// Endpoint específico para WordPress Plugin usando API Token
+router.get('/me-api', (req, res) => {
+  const apiToken = req.headers['authorization']?.replace('Bearer ', '') || req.headers['x-api-token'];
+  
+  console.log('🔗 WordPress plugin auth attempt');
+  console.log('🔑 API Token provided:', !!apiToken);
+  
+  if (!apiToken) {
+    console.log('❌ No API token provided');
+    return res.status(401).json({ error: 'API token required' });
+  }
+
+  try {
+    const user = database.get(
+      'SELECT id, email, name, role, custom_cpm, api_token FROM users WHERE api_token = ?',
+      [apiToken]
+    );
+    
+    console.log('👤 User found by API token:', !!user);
+    
+    if (!user) {
+      console.log('❌ Invalid API token');
+      return res.status(401).json({ error: 'Invalid API token' });
+    }
+    
+    console.log('✅ WordPress plugin auth successful for:', user.email);
+
+    res.json({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      customCpm: user.custom_cpm,
+      apiToken: user.api_token
+    });
+  } catch (err) {
+    console.error('🚨 WordPress auth error:', err);
+    return res.status(500).json({ error: 'Database error' });
+  }
+});
+
 router.post('/refresh-token', authenticateToken, (req, res) => {
   const token = jwt.sign(
     { id: req.user.id, email: req.user.email, role: req.user.role },

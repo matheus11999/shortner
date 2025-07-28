@@ -23,6 +23,20 @@ class URLShortener_API {
         $this->api_token = $settings['api_token'];
     }
     
+    /**
+     * Normalize API URL to avoid duplicate /api paths
+     */
+    private function normalize_url($url) {
+        $url = rtrim($url, '/');
+        
+        // Remove /api suffix if present to avoid duplication
+        if (substr($url, -4) === '/api') {
+            $url = substr($url, 0, -4);
+        }
+        
+        return $url;
+    }
+    
     public function test_connection($api_url = null, $api_token = null) {
         $url = $api_url ?: $this->api_url;
         $token = $api_token ?: $this->api_token;
@@ -37,10 +51,14 @@ class URLShortener_API {
         // Limpar URL
         $url = rtrim($url, '/');
         
-        // Testar endpoint de autenticação
-        $response = wp_remote_get($url . '/api/auth/me', array(
+        // Normalizar URL para evitar duplicação de /api
+        $normalized_url = $this->normalize_url($url);
+        
+        // Testar endpoint de autenticação específico para WordPress Plugin
+        $response = wp_remote_get($normalized_url . '/api/auth/me-api', array(
             'headers' => array(
                 'Authorization' => 'Bearer ' . $token,
+                'X-API-Token' => $token,
                 'Content-Type' => 'application/json'
             ),
             'timeout' => 15
@@ -91,9 +109,12 @@ class URLShortener_API {
             );
         }
         
-        $response = wp_remote_post($this->api_url . '/api/admin/adsites', array(
+        $normalized_url = $this->normalize_url($this->api_url);
+        
+        $response = wp_remote_post($normalized_url . '/api/admin/wordpress/adsites', array(
             'headers' => array(
                 'Authorization' => 'Bearer ' . $this->api_token,
+                'X-API-Token' => $this->api_token,
                 'Content-Type' => 'application/json'
             ),
             'body' => json_encode($data),
@@ -130,9 +151,12 @@ class URLShortener_API {
             return array('success' => false, 'message' => 'API não configurada');
         }
         
-        $response = wp_remote_get($this->api_url . '/api/admin/banner-configs/' . $adsite_id, array(
+        $normalized_url = $this->normalize_url($this->api_url);
+        
+        $response = wp_remote_get($normalized_url . '/api/admin/wordpress/banner-configs/' . $adsite_id, array(
             'headers' => array(
                 'Authorization' => 'Bearer ' . $this->api_token,
+                'X-API-Token' => $this->api_token,
                 'Content-Type' => 'application/json'
             )
         ));
@@ -172,9 +196,12 @@ class URLShortener_API {
             'modified' => $post->post_modified
         );
         
-        $response = wp_remote_post($this->api_url . '/api/admin/wordpress/sync-post', array(
+        $normalized_url = $this->normalize_url($this->api_url);
+        
+        $response = wp_remote_post($normalized_url . '/api/admin/wordpress/sync-post', array(
             'headers' => array(
                 'Authorization' => 'Bearer ' . $this->api_token,
+                'X-API-Token' => $this->api_token,
                 'Content-Type' => 'application/json'
             ),
             'body' => json_encode($post_data)
