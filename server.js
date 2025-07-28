@@ -29,25 +29,69 @@ const limiter = rateLimit({
   trustProxy: true
 });
 
-app.use(helmet());
-app.use(limiter);
-app.use(cors({
-  origin: [
-    'http://localhost:5173', 
-    'http://localhost:5174',
-    'https://evoapi-frontend-url.ttvjwi.easypanel.host',
-    process.env.CLIENT_URL
-  ].filter(Boolean),
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+app.use(helmet({
+  crossOriginEmbedderPolicy: false,
+  contentSecurityPolicy: false
 }));
+
+// CORS configuration - more permissive for EasyPanel
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, etc.)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'http://localhost:5173', 
+      'http://localhost:5174',
+      'https://evoapi-frontend-url.ttvjwi.easypanel.host',
+      process.env.CLIENT_URL
+    ].filter(Boolean);
+    
+    // Allow EasyPanel subdomains
+    if (origin.includes('easypanel.host') || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    console.log('🚫 CORS blocked origin:', origin);
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  preflightContinue: false,
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
+app.use(limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Additional CORS headers middleware
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  
+  // Set CORS headers manually for better control
+  if (origin && (origin.includes('easypanel.host') || origin.includes('localhost'))) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS,PATCH');
+    res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization');
+  }
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+  
+  next();
+});
 
 // Log all incoming requests (moved before routes)
 app.use((req, res, next) => {
   console.log(`📋 ${new Date().toISOString()} - ${req.method} ${req.originalUrl}`);
+  console.log(`   Origin: ${req.headers.origin || 'none'}`);
   if (req.body && Object.keys(req.body).length > 0) {
     console.log('   Body:', JSON.stringify(req.body, null, 2));
   }
