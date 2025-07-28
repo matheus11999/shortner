@@ -8,7 +8,7 @@ echo "📦 Adding changes to git..."
 git add .
 
 echo "💬 Creating commit..."
-git commit -m "Fix: Force enable trust proxy and explicit rate limit proxy config"
+git commit -m "Fix: Add CORS support for EasyPanel frontend domain"
 
 echo "📤 Pushing to GitHub..."
 git push origin backend
