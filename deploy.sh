@@ -8,7 +8,7 @@ echo "📦 Adding changes to git..."
 git add .
 
 echo "💬 Creating commit..."
-git commit -m "Fix: Implement robust CORS with manual headers and EasyPanel domain support"
+git commit -m "Fix: Add debug logging and JWT_SECRET fallback for login issues"
 
 echo "📤 Pushing to GitHub..."
 git push origin backend
