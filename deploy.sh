@@ -8,7 +8,7 @@ echo "📦 Adding changes to git..."
 git add .
 
 echo "💬 Creating commit..."
-git commit -m "Enhance logging and error handling for production debugging"
+git commit -m "Fix: Force enable trust proxy and explicit rate limit proxy config"
 
 echo "📤 Pushing to GitHub..."
 git push origin backend

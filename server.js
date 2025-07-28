@@ -15,15 +15,18 @@ const analyticsRoutes = require('./routes/analytics');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Configure trust proxy for production
-if (process.env.NODE_ENV === 'production') {
-  app.set('trust proxy', 1);
-}
+// Configure trust proxy - always enable in production or when behind reverse proxy
+// EasyPanel runs behind reverse proxy, so we need this
+app.set('trust proxy', 1);
+
+console.log(`🔧 Trust proxy enabled. NODE_ENV: ${process.env.NODE_ENV}`);
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: process.env.NODE_ENV === 'production' ? 100 : 1000,
-  message: 'Too many requests from this IP'
+  message: 'Too many requests from this IP',
+  // Explicitly configure for proxy environments
+  trustProxy: true
 });
 
 app.use(helmet());
