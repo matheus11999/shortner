@@ -36,68 +36,31 @@ app.use(helmet({
   contentSecurityPolicy: false
 }));
 
-// CORS configuration - Permissive for EasyPanel deployment
-const corsOptions = {
-  origin: function (origin, callback) {
-    console.log('🔍 CORS check for origin:', origin);
-    
-    // Allow requests with no origin (mobile apps, direct API calls, etc.)
-    if (!origin) {
-      console.log('✅ No origin - allowing');
-      return callback(null, true);
-    }
-    
-    // Allow all EasyPanel subdomains
-    if (origin.includes('easypanel.host')) {
-      console.log('✅ EasyPanel subdomain - allowing');
-      return callback(null, true);
-    }
-    
-    // Allow localhost for development
-    if (origin.includes('localhost')) {
-      console.log('✅ Localhost - allowing');
-      return callback(null, true);
-    }
-    
-    // Allow specific frontend URL from env
-    if (process.env.CLIENT_URL && origin === process.env.CLIENT_URL) {
-      console.log('✅ CLIENT_URL match - allowing');
-      return callback(null, true);
-    }
-    
-    console.log('🚫 CORS blocked origin:', origin);
-    callback(null, true); // Changed: Allow all for now to debug
-  },
+// CORS configuration - Maximum permissive for EasyPanel
+app.use(cors({
+  origin: true, // Accept all origins
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-API-Token'],
   preflightContinue: false,
   optionsSuccessStatus: 200
-};
-
-app.use(cors(corsOptions));
+}));
 app.use(limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Additional CORS headers middleware - more permissive
+// Additional CORS headers middleware - maximum permissive
 app.use((req, res, next) => {
-  const origin = req.headers.origin;
+  // Always set permissive CORS headers
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS,PATCH');
+  res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization,X-API-Token');
   
-  // Always set CORS headers for debugging
-  if (origin) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS,PATCH');
-    res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization,X-API-Token');
-    console.log('🔧 Set CORS headers for origin:', origin);
-  }
-  
-  // Handle preflight requests
+  // Handle preflight requests immediately
   if (req.method === 'OPTIONS') {
-    console.log('✈️ Handling OPTIONS preflight request');
-    res.status(200).json({ message: 'CORS preflight OK' });
-    return;
+    console.log('✈️ OPTIONS preflight for:', req.headers.origin);
+    return res.status(200).end();
   }
   
   next();
