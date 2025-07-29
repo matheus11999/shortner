@@ -498,7 +498,7 @@ router.post('/wordpress/sync-post', authenticateAdsiteToken, async (req, res) =>
 router.get('/wordpress-plugin-version', authenticateAdsiteToken, async (req, res) => {
   try {
     res.json({
-      version: '1.1.0',
+      version: '1.2.0',
       release_date: new Date().toISOString(),
       minimum_wp_version: '5.0',
       tested_wp_version: '6.4'
@@ -512,6 +512,16 @@ router.get('/wordpress-plugin-version', authenticateAdsiteToken, async (req, res
 router.get('/wordpress-plugin-changelog', authenticateAdsiteToken, async (req, res) => {
   try {
     const changelog = `
+= 1.2.0 =
+* 🎯 NOVO: Sistema completo de exibição de anúncios no WordPress
+* 🎯 NOVO: Interceptação de URLs no formato post.php?u=base64
+* 🎯 NOVO: Redirecionamento automático para posts aleatórios
+* 🎯 NOVO: Template responsivo com modo escuro/claro
+* 🎯 NOVO: Steps 1 e 2 com timers configuráveis
+* 🎯 NOVO: Botão "Testar WordPress" no painel admin
+* 🎨 Melhorado: Design moderno e responsivo dos anúncios
+* 🔧 Melhorado: Sistema de substituição de conteúdo de posts
+
 = 1.1.0 =
 * Adicionado: Botão de teste integrado do AdSite
 * Adicionado: Sistema de auto-update automático

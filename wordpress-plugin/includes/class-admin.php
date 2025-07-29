@@ -21,6 +21,7 @@ class URLShortener_Admin {
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
         add_action('wp_ajax_urlshortener_test_connection', array($this, 'test_connection'));
         add_action('wp_ajax_urlshortener_test_adsite', array($this, 'test_adsite'));
+        add_action('wp_ajax_urlshortener_test_wordpress', array($this, 'test_wordpress_ads'));
         add_action('wp_ajax_urlshortener_check_updates', array($this, 'check_updates'));
         // Removed register_adsite functionality - using existing AdSite token"
     }
@@ -131,6 +132,10 @@ class URLShortener_Admin {
                     <?php if ($settings['connection_status'] === 'connected'): ?>
                         <button type="button" id="test-adsite" class="button button-primary">
                             <span class="dashicons dashicons-visibility"></span> Testar AdSite
+                        </button>
+                        
+                        <button type="button" id="test-wordpress" class="button button-secondary" style="background: #28a745; border-color: #28a745; color: white;">
+                            <span class="dashicons dashicons-wordpress"></span> Testar WordPress
                         </button>
                     <?php endif; ?>
                 </div>
@@ -305,6 +310,27 @@ class URLShortener_Admin {
             'adsite_name' => $adsite['name'],
             'adsite_id' => $adsite['id']
         ));
+    }
+    
+    public function test_wordpress_ads() {
+        check_ajax_referer('urlshortener_admin_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_die();
+        }
+        
+        // Generate test URL for WordPress
+        if (class_exists('URLShortener_Frontend')) {
+            $frontend = URLShortener_Frontend::get_instance();
+            $test_url = $frontend->generate_test_url(home_url());
+            
+            wp_send_json_success(array(
+                'test_url' => $test_url,
+                'message' => 'URL de teste do WordPress gerada'
+            ));
+        } else {
+            wp_send_json_error('Sistema frontend não disponível');
+        }
     }
     
     public function check_updates() {

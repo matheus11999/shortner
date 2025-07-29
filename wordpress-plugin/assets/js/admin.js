@@ -69,6 +69,59 @@ jQuery(document).ready(function($) {
         refreshStatus(false);
     });
     
+    // Test WordPress Ads
+    $('#test-wordpress').on('click', function() {
+        var button = $(this);
+        var originalText = button.html();
+        
+        button.html('<span class="dashicons dashicons-update-alt spin"></span> Gerando...').prop('disabled', true);
+        
+        $.ajax({
+            url: urlshortener_admin_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'urlshortener_test_wordpress',
+                nonce: urlshortener_admin_ajax.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    var data = response.data;
+                    var testResult = $('#test-result');
+                    
+                    testResult.html(
+                        '<div class="notice notice-success inline">' +
+                        '<p><strong>🎯 Teste do WordPress - Sistema Completo</strong></p>' +
+                        '<p>URL de teste gerada! Esta URL simula o fluxo completo:</p>' +
+                        '<ul style="margin: 10px 0 10px 20px;">' +
+                        '<li>✅ Interceptação de URL encurtada</li>' +
+                        '<li>✅ Redirecionamento para post aleatório</li>' +
+                        '<li>✅ Substituição do conteúdo por anúncios</li>' +
+                        '<li>✅ Steps 1 e 2 com modo escuro</li>' +
+                        '<li>✅ Design responsivo</li>' +
+                        '</ul>' +
+                        '<p>' +
+                        '<a href="' + data.test_url + '" target="_blank" class="button button-primary">' +
+                        '<span class="dashicons dashicons-external"></span> Testar no WordPress' +
+                        '</a>' +
+                        '</p>' +
+                        '<p><small><strong>URL:</strong> ' + data.test_url + '</small></p>' +
+                        '</div>'
+                    ).show();
+                    
+                    showNotice('URL de teste do WordPress gerada com sucesso!', 'success');
+                } else {
+                    showNotice('Erro ao gerar teste: ' + (response.data || 'Erro desconhecido'), 'error');
+                }
+            },
+            error: function() {
+                showNotice('Erro de conexão ao gerar teste', 'error');
+            },
+            complete: function() {
+                button.html(originalText).prop('disabled', false);
+            }
+        });
+    });
+    
     // Test AdSite
     $('#test-adsite').on('click', function() {
         var button = $(this);
