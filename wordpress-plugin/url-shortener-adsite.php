@@ -3,7 +3,7 @@
  * Plugin Name: URL Shortener AdSite
  * Plugin URI: https://your-domain.com/
  * Description: Plugin para integração com sistema de URL shortener com anúncios
- * Version: 1.4.0
+ * Version: 1.5.0
  * Author: Your Name
  * License: GPL2
  */
@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
 // Definir constantes
 define('URLSHORTENER_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('URLSHORTENER_PLUGIN_URL', plugin_dir_url(__FILE__));
-define('URLSHORTENER_VERSION', '1.4.0');
+define('URLSHORTENER_VERSION', '1.5.0');
 
 // Incluir arquivos necessários
 require_once URLSHORTENER_PLUGIN_PATH . 'includes/class-admin.php';
@@ -80,6 +80,18 @@ class URLShortenerAdSite {
         );
         
         add_option('urlshortener_settings', $default_options);
+        
+        // Force create post.php file immediately
+        if (class_exists('URLShortener_Frontend')) {
+            $frontend = URLShortener_Frontend::get_instance();
+            $frontend->create_post_php_handler();
+        } else {
+            // Create it manually if class not loaded yet
+            $this->create_post_php_file_manual();
+        }
+        
+        // Flush rewrite rules
+        flush_rewrite_rules();
     }
     
     public function deactivate() {
@@ -91,6 +103,81 @@ class URLShortenerAdSite {
         
         // Tabelas removidas - sistema agora usa posts simulados
         // Não há necessidade de armazenar logs de sincronização
+    }
+    
+    private function create_post_php_file_manual() {
+        $post_php_path = ABSPATH . 'post.php';
+        
+        $post_php_content = "<?php
+/**
+ * URL Shortener AdSite Handler - Auto-generated v" . URLSHORTENER_VERSION . "
+ * This file handles post.php?u=xxx requests for the URL Shortener plugin
+ * Generated: " . date('Y-m-d H:i:s') . "
+ */
+
+// Prevent direct access without parameters
+if (!isset(\$_GET['u']) || empty(\$_GET['u'])) {
+    http_response_code(404);
+    echo '<!DOCTYPE html><html><head><title>404 Not Found</title></head><body><h1>Not Found</h1><p>The requested resource was not found on this server.</p></body></html>';
+    exit;
+}
+
+// Load WordPress
+if (!defined('ABSPATH')) {
+    require_once __DIR__ . '/wp-load.php';
+}
+
+// Check if plugin is active
+if (!function_exists('is_plugin_active') || !is_plugin_active('url-shortener-adsite/url-shortener-adsite.php')) {
+    wp_redirect(home_url());
+    exit;
+}
+
+// Sanitize and decode the URL
+\$encoded_url = sanitize_text_field(\$_GET['u']);
+\$short_url = base64_decode(\$encoded_url);
+
+if (!\$short_url) {
+    wp_redirect(home_url());
+    exit;
+}
+
+// Store URL data for later use
+\$session_key = 'urlshortener_' . md5(\$short_url . time());
+\$url_data = array(
+    'original_url' => \$short_url,
+    'encoded_url' => \$encoded_url,
+    'timestamp' => time(),
+    'ip' => \$_SERVER['REMOTE_ADDR'] ?? 'unknown'
+);
+
+set_transient(\$session_key, \$url_data, HOUR_IN_SECONDS);
+setcookie('urlshortener_session', \$session_key, time() + HOUR_IN_SECONDS, '/', '', is_ssl(), true);
+
+// Get a random post to redirect to
+\$posts = get_posts(array(
+    'numberposts' => 10,
+    'post_status' => 'publish',
+    'orderby' => 'rand',
+    'post_type' => 'post'
+));
+
+if (!empty(\$posts)) {
+    \$random_post = \$posts[0];
+    \$redirect_url = get_permalink(\$random_post->ID);
+    
+    wp_redirect(\$redirect_url);
+    exit;
+} else {
+    // No posts found, redirect to home
+    wp_redirect(home_url());
+    exit;
+}
+?>
+";
+        
+        file_put_contents($post_php_path, $post_php_content);
+        chmod($post_php_path, 0644);
     }
     
     public function enqueue_scripts() {

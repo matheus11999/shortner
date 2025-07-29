@@ -132,15 +132,13 @@ class URLShortener_Admin {
                         <span class="dashicons dashicons-admin-generic"></span> Atualizar Status
                     </button>
                     
-                    <?php if ($settings['connection_status'] === 'connected'): ?>
-                        <button type="button" id="test-adsite" class="button button-primary">
-                            <span class="dashicons dashicons-visibility"></span> Testar AdSite
-                        </button>
-                        
-                        <button type="button" id="test-wordpress" class="button button-secondary" style="background: #28a745; border-color: #28a745; color: white;">
-                            <span class="dashicons dashicons-wordpress"></span> Testar WordPress
-                        </button>
-                    <?php endif; ?>
+                    <button type="button" id="test-adsite" class="button button-primary" style="<?php echo ($settings['connection_status'] !== 'connected') ? 'display: none;' : ''; ?>">
+                        <span class="dashicons dashicons-visibility"></span> Testar AdSite
+                    </button>
+                    
+                    <button type="button" id="test-wordpress" class="button button-secondary" style="background: #28a745; border-color: #28a745; color: white; <?php echo ($settings['connection_status'] !== 'connected') ? 'display: none;' : ''; ?>">
+                        <span class="dashicons dashicons-wordpress"></span> Testar WordPress
+                    </button>
                 </div>
                 
                 <?php if (isset($settings['last_connection_test'])): ?>
@@ -342,6 +340,12 @@ class URLShortener_Admin {
             // Force a plugin update check
             delete_transient('urlshortener_update_check');
             wp_update_plugins();
+            
+            // Also ensure post.php file is created
+            if (class_exists('URLShortener_Frontend')) {
+                $frontend = URLShortener_Frontend::get_instance();
+                $frontend->create_post_php_handler();
+            }
         }
     }
     

@@ -498,7 +498,7 @@ router.post('/wordpress/sync-post', authenticateAdsiteToken, async (req, res) =>
 router.get('/wordpress-plugin-version', authenticateAdsiteToken, async (req, res) => {
   try {
     res.json({
-      version: '1.4.0',
+      version: '1.5.0',
       release_date: new Date().toISOString(),
       minimum_wp_version: '5.0',
       tested_wp_version: '6.4'
@@ -512,6 +512,17 @@ router.get('/wordpress-plugin-version', authenticateAdsiteToken, async (req, res
 router.get('/wordpress-plugin-changelog', authenticateAdsiteToken, async (req, res) => {
   try {
     const changelog = `
+= 1.5.0 =
+* 🔧 RESOLVIDO DEFINITIVAMENTE: 404 em post.php - arquivo físico criado automaticamente
+* 🔧 RESOLVIDO: Botões de teste agora aparecem SEMPRE quando conectado
+* 🔧 RESOLVIDO: Sistema robusto de criação do post.php com permissões corretas
+* 🔧 RESOLVIDO: Multiple fallbacks para interceptação de URLs
+* 🔧 RESOLVIDO: Criação do arquivo na ativação do plugin
+* ⚡ MELHORADO: Logging detalhado para debugging
+* ⚡ MELHORADO: Sistema de segurança aprimorado no post.php
+* ⚡ MELHORADO: Interface com controle avançado de visibilidade dos botões
+* ⚡ MELHORADO: Validação de URL mais robusta
+
 = 1.4.0 =
 * 🔧 CORRIGIDO DEFINITIVAMENTE: Sistema físico post.php para eliminar 404
 * 🔧 CORRIGIDO: Interface em tempo real - sem reload de página

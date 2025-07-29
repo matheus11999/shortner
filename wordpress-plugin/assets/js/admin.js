@@ -63,8 +63,44 @@ jQuery(document).ready(function($) {
         }
         #test-adsite, #test-wordpress {
             animation: fadeIn 0.5s ease;
+            transition: all 0.3s ease;
+        }
+        #test-adsite.show, #test-wordpress.show {
+            display: inline-block !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+        }
+        #test-adsite.hide, #test-wordpress.hide {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
         }
     `).appendTo('head');
+    
+    // Force show buttons if connected on page load
+    function checkAndShowButtons() {
+        if ($('#connection-status').hasClass('connected')) {
+            showTestButtons();
+        } else {
+            hideTestButtons();
+        }
+    }
+    
+    function showTestButtons() {
+        $('#test-adsite, #test-wordpress').removeClass('hide').addClass('show').show().css({
+            'display': 'inline-block',
+            'opacity': '1',
+            'visibility': 'visible'
+        });
+    }
+    
+    function hideTestButtons() {
+        $('#test-adsite, #test-wordpress').removeClass('show').addClass('hide').hide().css({
+            'display': 'none',
+            'opacity': '0',
+            'visibility': 'hidden'
+        });
+    }
     
     // Testar conexão
     $('#test-connection').on('click', function() {
@@ -103,9 +139,8 @@ jQuery(document).ready(function($) {
                     
                     showNotice('✅ ' + response.message, 'success');
                     
-                    // Show test buttons with animation
-                    $('#test-adsite').show().css('animation', 'fadeIn 0.5s');
-                    $('#test-wordpress').show().css('animation', 'fadeIn 0.5s');
+                    // Show test buttons
+                    showTestButtons();
                     
                     // Auto-save settings
                     saveSettingsRealTime();
@@ -115,8 +150,7 @@ jQuery(document).ready(function($) {
                         .html('<span class="dashicons dashicons-dismiss"></span> <strong>Desconectado</strong><br><small>Configure a URL da API e Token para conectar</small>');
                     
                     showNotice('❌ ' + response.message, 'error');
-                    $('#test-adsite').hide();
-                    $('#test-wordpress').hide();
+                    hideTestButtons();
                 }
             },
             error: function(xhr, status, error) {
@@ -310,9 +344,8 @@ jQuery(document).ready(function($) {
                         showNotice('Status atualizado: ' + response.message, 'success');
                     }
                     
-                    // Show test buttons with animation
-                    $('#test-adsite').show().css('animation', 'fadeIn 0.5s');
-                    $('#test-wordpress').show().css('animation', 'fadeIn 0.5s');
+                    // Show test buttons
+                    showTestButtons();
                     
                 } else {
                     statusDiv.removeClass('connected').addClass('disconnected')
@@ -321,8 +354,7 @@ jQuery(document).ready(function($) {
                     if (!silent) {
                         showNotice('Status: ' + response.message, 'warning');
                     }
-                    $('#test-adsite').hide();
-                    $('#test-wordpress').hide();
+                    hideTestButtons();
                 }
             },
             error: function(xhr, status, error) {
@@ -359,8 +391,7 @@ jQuery(document).ready(function($) {
                         .html('<span class="dashicons dashicons-yes-alt"></span> <strong>Conectado</strong>');
                     
                     // Show test buttons immediately
-                    $('#test-adsite').show().css('animation', 'fadeIn 0.5s');
-                    $('#test-wordpress').show().css('animation', 'fadeIn 0.5s');
+                    showTestButtons();
                     
                     // Auto-save settings
                     saveSettingsRealTime();
@@ -370,12 +401,12 @@ jQuery(document).ready(function($) {
                     statusDiv.removeClass('connected').addClass('disconnected')
                         .html('<span class="dashicons dashicons-dismiss"></span> <strong>Token Inválido</strong>');
                     
-                    $('#test-adsite').hide();
-                    $('#test-wordpress').hide();
+                    hideTestButtons();
                 }
             },
             error: function() {
                 $('#api_token').removeClass('valid').addClass('invalid');
+                hideTestButtons();
             }
         });
     }
@@ -510,6 +541,9 @@ jQuery(document).ready(function($) {
     
     // Initial status check on page load - faster
     $(document).ready(function() {
+        // Check buttons state immediately
+        setTimeout(checkAndShowButtons, 100);
+        
         // Immediate check
         setTimeout(function() {
             refreshStatus(true);
@@ -520,6 +554,9 @@ jQuery(document).ready(function($) {
         
         // Check for updates every 30 seconds
         setInterval(autoCheckUpdates, 30000);
+        
+        // Periodically check buttons state
+        setInterval(checkAndShowButtons, 5000);
     });
     
 });
