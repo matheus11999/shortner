@@ -44,8 +44,9 @@ jQuery(document).ready(function($) {
                     
                     showNotice('✅ ' + response.message, 'success');
                     
-                    // Show test button
+                    // Show test buttons
                     $('#test-adsite').show();
+                    $('#test-wordpress').show();
                     
                 } else {
                     statusDiv.removeClass('connected').addClass('disconnected')
@@ -53,6 +54,7 @@ jQuery(document).ready(function($) {
                     
                     showNotice('❌ ' + response.message, 'error');
                     $('#test-adsite').hide();
+                    $('#test-wordpress').hide();
                 }
             },
             error: function(xhr, status, error) {
@@ -246,8 +248,9 @@ jQuery(document).ready(function($) {
                         showNotice('Status atualizado: ' + response.message, 'success');
                     }
                     
-                    // Show test button
+                    // Show test buttons
                     $('#test-adsite').show();
+                    $('#test-wordpress').show();
                     
                 } else {
                     statusDiv.removeClass('connected').addClass('disconnected')
@@ -257,6 +260,7 @@ jQuery(document).ready(function($) {
                         showNotice('Status: ' + response.message, 'warning');
                     }
                     $('#test-adsite').hide();
+                    $('#test-wordpress').hide();
                 }
             },
             error: function(xhr, status, error) {

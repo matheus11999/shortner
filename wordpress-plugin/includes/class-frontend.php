@@ -19,16 +19,39 @@ class URLShortener_Frontend {
     private function __construct() {
         $this->api = URLShortener_API::get_instance();
         
-        // Hook into WordPress to intercept post.php requests
-        add_action('init', array($this, 'intercept_post_request'));
-        add_action('template_redirect', array($this, 'handle_ads_display'));
+        // Add rewrite rules and hooks
+        add_action('init', array($this, 'add_rewrite_rules'));
+        add_action('template_redirect', array($this, 'handle_post_request'));
         add_filter('the_content', array($this, 'replace_post_content'), 999);
         add_action('wp_enqueue_scripts', array($this, 'enqueue_frontend_assets'));
+        add_filter('query_vars', array($this, 'add_query_vars'));
     }
     
-    public function intercept_post_request() {
-        // Check if we're on the right page with the right parameter
-        if (isset($_GET['u']) && !empty($_GET['u'])) {
+    public function add_rewrite_rules() {
+        // Add rewrite rule for post.php?u=xxx
+        add_rewrite_rule(
+            '^post\.php$',
+            'index.php?urlshortener_handler=1',
+            'top'
+        );
+        
+        // Flush rewrite rules if they haven't been flushed
+        if (get_option('urlshortener_rewrite_rules_flushed') !== URLSHORTENER_VERSION) {
+            flush_rewrite_rules();
+            update_option('urlshortener_rewrite_rules_flushed', URLSHORTENER_VERSION);
+        }
+    }
+    
+    public function add_query_vars($vars) {
+        $vars[] = 'urlshortener_handler';
+        $vars[] = 'u';
+        return $vars;
+    }
+    
+    public function handle_post_request() {
+        $handler = get_query_var('urlshortener_handler');
+        
+        if ($handler && isset($_GET['u']) && !empty($_GET['u'])) {
             // Decode the short URL
             $encoded_url = sanitize_text_field($_GET['u']);
             
@@ -43,8 +66,9 @@ class URLShortener_Frontend {
                     $this->redirect_to_random_post();
                 }
             } catch (Exception $e) {
-                // Invalid URL, continue normally
-                return;
+                // Invalid URL, redirect to home
+                wp_redirect(home_url());
+                exit;
             }
         }
     }

@@ -498,7 +498,7 @@ router.post('/wordpress/sync-post', authenticateAdsiteToken, async (req, res) =>
 router.get('/wordpress-plugin-version', authenticateAdsiteToken, async (req, res) => {
   try {
     res.json({
-      version: '1.2.0',
+      version: '1.3.0',
       release_date: new Date().toISOString(),
       minimum_wp_version: '5.0',
       tested_wp_version: '6.4'
@@ -512,6 +512,16 @@ router.get('/wordpress-plugin-version', authenticateAdsiteToken, async (req, res
 router.get('/wordpress-plugin-changelog', authenticateAdsiteToken, async (req, res) => {
   try {
     const changelog = `
+= 1.3.0 =
+* 🔧 CORRIGIDO: Sistema de rewrite rules para post.php (sem mais 404)
+* 🔧 CORRIGIDO: Auto-update agora busca corretamente no servidor
+* 🔧 CORRIGIDO: Botões de teste agora aparecem quando conectado
+* 🔧 CORRIGIDO: Download e instalação automática do plugin
+* 🔧 CORRIGIDO: Verificação automática de atualizações ao abrir configurações
+* ⚡ MELHORADO: Sistema de interceptação de URLs mais robusto
+* ⚡ MELHORADO: Logging de erros para debugging
+* ⚡ MELHORADO: Normalização de URLs da API
+
 = 1.2.0 =
 * 🎯 NOVO: Sistema completo de exibição de anúncios no WordPress
 * 🎯 NOVO: Interceptação de URLs no formato post.php?u=base64

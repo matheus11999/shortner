@@ -23,6 +23,9 @@ class URLShortener_Admin {
         add_action('wp_ajax_urlshortener_test_adsite', array($this, 'test_adsite'));
         add_action('wp_ajax_urlshortener_test_wordpress', array($this, 'test_wordpress_ads'));
         add_action('wp_ajax_urlshortener_check_updates', array($this, 'check_updates'));
+        
+        // Force update check on admin page load
+        add_action('admin_init', array($this, 'force_update_check'));
         // Removed register_adsite functionality - using existing AdSite token"
     }
     
@@ -330,6 +333,15 @@ class URLShortener_Admin {
             ));
         } else {
             wp_send_json_error('Sistema frontend não disponível');
+        }
+    }
+    
+    public function force_update_check() {
+        // Only on our settings page
+        if (isset($_GET['page']) && $_GET['page'] === 'urlshortener-settings') {
+            // Force a plugin update check
+            delete_transient('urlshortener_update_check');
+            wp_update_plugins();
         }
     }
     

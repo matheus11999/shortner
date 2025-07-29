@@ -31,11 +31,17 @@ class URLShortener_Updater {
         $remote_version = $this->get_remote_version();
         
         if ($remote_version && version_compare($this->current_version, $remote_version, '<')) {
+            $settings = get_option('urlshortener_settings');
+            $api_url = rtrim($settings['api_url'], '/');
+            if (substr($api_url, -4) === '/api') {
+                $api_url = substr($api_url, 0, -4);
+            }
+            
             $transient->response[$this->plugin_slug] = (object) array(
                 'slug' => $this->plugin_slug,
                 'new_version' => $remote_version,
-                'url' => $this->api_url,
-                'package' => $this->api_url . '/admin/wordpress-plugin-download'
+                'url' => $api_url,
+                'package' => $api_url . '/api/admin/wordpress-plugin-download'
             );
         }
         
@@ -65,7 +71,8 @@ class URLShortener_Updater {
     }
     
     public function upgrader_pre_download($result, $package, $upgrader) {
-        if (strpos($package, $this->api_url) !== false) {
+        $settings = get_option('urlshortener_settings');
+        if (!empty($settings['api_url']) && strpos($package, 'wordpress-plugin-download') !== false) {
             // Use o sistema de download existente
             return $this->download_plugin($package);
         }
@@ -100,7 +107,13 @@ class URLShortener_Updater {
             return false;
         }
         
-        $response = wp_remote_get($settings['api_url'] . '/admin/wordpress-plugin-version', array(
+        // Normalize API URL
+        $api_url = rtrim($settings['api_url'], '/');
+        if (substr($api_url, -4) === '/api') {
+            $api_url = substr($api_url, 0, -4);
+        }
+        
+        $response = wp_remote_get($api_url . '/api/admin/wordpress-plugin-version', array(
             'headers' => array(
                 'Authorization' => 'Bearer ' . $settings['api_token'],
                 'X-API-Token' => $settings['api_token']
@@ -109,6 +122,13 @@ class URLShortener_Updater {
         ));
         
         if (is_wp_error($response)) {
+            error_log('URLShortener Update Check Error: ' . $response->get_error_message());
+            return false;
+        }
+        
+        $status_code = wp_remote_retrieve_response_code($response);
+        if ($status_code !== 200) {
+            error_log('URLShortener Update Check HTTP Error: ' . $status_code);
             return false;
         }
         
@@ -116,7 +136,7 @@ class URLShortener_Updater {
         $data = json_decode($body, true);
         
         if (isset($data['version'])) {
-            set_transient('urlshortener_update_check', $data['version'], 12 * HOUR_IN_SECONDS);
+            set_transient('urlshortener_update_check', $data['version'], 6 * HOUR_IN_SECONDS);
             return $data['version'];
         }
         
