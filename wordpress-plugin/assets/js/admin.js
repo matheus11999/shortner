@@ -71,40 +71,40 @@ jQuery(document).ready(function($) {
         }, 2000);
     });
     
-    // Sincronização manual
-    $('#manual-sync').on('click', function() {
+    // Registrar AdSite
+    $('#register-adsite').on('click', function() {
         var button = $(this);
         var originalText = button.text();
         
-        button.text('Sincronizando...').prop('disabled', true);
+        button.text('Registrando...').prop('disabled', true);
         
-        var statusDiv = $('#sync-status');
-        statusDiv.html('<p>Iniciando sincronização...</p>');
+        var statusDiv = $('#register-status');
+        statusDiv.html('<p>Registrando AdSite no sistema...</p>');
         
         $.ajax({
             url: urlshortener_admin_ajax.ajax_url,
             type: 'POST',
             data: {
-                action: 'urlshortener_sync_posts',
+                action: 'urlshortener_register_adsite',
                 nonce: urlshortener_admin_ajax.nonce
             },
             success: function(response) {
                 if (response.success) {
-                    statusDiv.html('<p class="success">✓ ' + response.message + '</p>');
-                    showNotice('Posts sincronizados com sucesso!', 'success');
+                    statusDiv.html('<p class="success">✓ AdSite registrado com sucesso!</p>');
+                    showNotice('AdSite registrado e pronto para exibir anúncios!', 'success');
                     
-                    // Recarregar logs após alguns segundos
+                    // Salvar configurações após o registro
                     setTimeout(function() {
-                        location.reload();
+                        $('form').submit();
                     }, 2000);
                 } else {
                     statusDiv.html('<p class="error">✗ ' + response.message + '</p>');
-                    showNotice('Erro na sincronização: ' + response.message, 'error');
+                    showNotice('Erro ao registrar AdSite: ' + response.message, 'error');
                 }
             },
             error: function() {
-                statusDiv.html('<p class="error">✗ Erro ao sincronizar posts</p>');
-                showNotice('Erro ao sincronizar posts. Tente novamente.', 'error');
+                statusDiv.html('<p class="error">✗ Erro ao registrar AdSite</p>');
+                showNotice('Erro ao registrar AdSite. Verifique sua conexão.', 'error');
             },
             complete: function() {
                 button.text(originalText).prop('disabled', false);
@@ -116,6 +116,7 @@ jQuery(document).ready(function($) {
     $('form').on('submit', function() {
         var apiUrl = $('#api_url').val();
         var apiToken = $('#api_token').val();
+        var adsiteName = $('#adsite_name').val();
         
         if (apiUrl && !isValidUrl(apiUrl)) {
             alert('Por favor, insira uma URL válida para a API.');
@@ -124,6 +125,11 @@ jQuery(document).ready(function($) {
         
         if (apiUrl && !apiToken) {
             alert('Token da API é obrigatório quando a URL é fornecida.');
+            return false;
+        }
+        
+        if (!adsiteName.trim()) {
+            alert('Nome do AdSite é obrigatório.');
             return false;
         }
         

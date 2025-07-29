@@ -20,7 +20,7 @@ class URLShortener_Admin {
         add_action('admin_init', array($this, 'init_settings'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
         add_action('wp_ajax_urlshortener_test_connection', array($this, 'test_connection'));
-        add_action('wp_ajax_urlshortener_sync_posts', array($this, 'manual_sync'));
+        add_action('wp_ajax_urlshortener_register_adsite', array($this, 'register_adsite'));
     }
     
     public function add_admin_menu() {
@@ -60,26 +60,26 @@ class URLShortener_Admin {
         );
         
         add_settings_section(
-            'urlshortener_sync_section',
-            'Configurações de Sincronização',
-            array($this, 'sync_section_callback'),
+            'urlshortener_adsite_section',
+            'Configurações do AdSite',
+            array($this, 'adsite_section_callback'),
             'urlshortener_settings'
         );
         
         add_settings_field(
-            'auto_sync',
-            'Sincronização Automática',
-            array($this, 'auto_sync_callback'),
+            'adsite_name',
+            'Nome do AdSite',
+            array($this, 'adsite_name_callback'),
             'urlshortener_settings',
-            'urlshortener_sync_section'
+            'urlshortener_adsite_section'
         );
         
         add_settings_field(
-            'sync_interval',
-            'Intervalo de Sincronização (minutos)',
-            array($this, 'sync_interval_callback'),
+            'description',
+            'Descrição',
+            array($this, 'description_callback'),
             'urlshortener_settings',
-            'urlshortener_sync_section'
+            'urlshortener_adsite_section'
         );
     }
     
@@ -147,20 +147,21 @@ class URLShortener_Admin {
                 
                 <?php if ($settings['connection_status'] === 'connected'): ?>
                     <hr style="margin: 20px 0;">
-                    <h4>Sincronização de Posts</h4>
+                    <h4>Registrar como AdSite</h4>
+                    <p>Registre este WordPress como um AdSite no sistema URL Shortener para exibir anúncios.</p>
                     
-                    <?php if ($settings['last_sync']): ?>
-                        <p><strong>Última sincronização:</strong> <?php echo $settings['last_sync']; ?></p>
-                    <?php endif; ?>
-                    
-                    <button type="button" id="manual-sync" class="button button-secondary">
-                        <span class="dashicons dashicons-update"></span> Sincronizar Posts Agora
+                    <button type="button" id="register-adsite" class="button button-primary">
+                        <span class="dashicons dashicons-admin-site"></span> Registrar AdSite
                     </button>
                     
-                    <div id="sync-status" style="margin-top: 10px;"></div>
+                    <div id="register-status" style="margin-top: 10px;"></div>
+                    
+                    <div class="notice notice-info inline" style="margin-top: 15px;">
+                        <p><strong>Nota:</strong> O sistema agora gera posts simulados automaticamente. Não é necessário sincronizar posts do WordPress.</p>
+                    </div>
                 <?php else: ?>
                     <div class="notice notice-warning inline">
-                        <p><strong>Atenção:</strong> Conecte-se à API para habilitar a sincronização de posts.</p>
+                        <p><strong>Atenção:</strong> Conecte-se à API para registrar como AdSite.</p>
                     </div>
                 <?php endif; ?>
             </div>
@@ -174,10 +175,15 @@ class URLShortener_Admin {
             </form>
             
             <div class="urlshortener-info-card">
-                <h3>Logs de Sincronização</h3>
-                <div id="sync-logs">
-                    <?php $this->display_sync_logs(); ?>
-                </div>
+                <h3>Sistema de Posts Simulados</h3>
+                <p>O sistema URL Shortener agora gera automaticamente posts simulados para exibição de anúncios, baseados no nome e configurações do seu AdSite.</p>
+                <p><strong>Vantagens:</strong></p>
+                <ul>
+                    <li>✅ Não consome recursos do WordPress</li>
+                    <li>✅ Posts otimizados para conversão</li>
+                    <li>✅ Conteúdo sempre atualizado</li>
+                    <li>✅ Sem necessidade de sincronização</li>
+                </ul>
             </div>
         </div>
         <?php
@@ -187,8 +193,8 @@ class URLShortener_Admin {
         echo '<p>Configure a URL da API e o token para conectar com o sistema URL Shortener.</p>';
     }
     
-    public function sync_section_callback() {
-        echo '<p>Configure como os posts serão sincronizados com o sistema URL Shortener.</p>';
+    public function adsite_section_callback() {
+        echo '<p>Configure as informações do seu AdSite para o sistema URL Shortener.</p>';
     }
     
     public function api_url_callback() {
@@ -203,17 +209,16 @@ class URLShortener_Admin {
         echo '<p class="description">Token de autenticação fornecido pelo sistema URL Shortener</p>';
     }
     
-    public function auto_sync_callback() {
+    public function adsite_name_callback() {
         $settings = get_option('urlshortener_settings');
-        $checked = $settings['auto_sync'] ? 'checked' : '';
-        echo '<input type="checkbox" id="auto_sync" name="urlshortener_settings[auto_sync]" value="1" ' . $checked . ' />';
-        echo '<label for="auto_sync">Ativar sincronização automática de posts</label>';
+        echo '<input type="text" id="adsite_name" name="urlshortener_settings[adsite_name]" value="' . esc_attr($settings['adsite_name']) . '" class="regular-text" />';
+        echo '<p class="description">Nome que aparecerá nos posts simulados</p>';
     }
     
-    public function sync_interval_callback() {
+    public function description_callback() {
         $settings = get_option('urlshortener_settings');
-        echo '<input type="number" id="sync_interval" name="urlshortener_settings[sync_interval]" value="' . esc_attr($settings['sync_interval']) . '" min="5" max="1440" />';
-        echo '<p class="description">Intervalo em minutos para sincronização automática (5-1440 minutos)</p>';
+        echo '<textarea id="description" name="urlshortener_settings[description]" rows="3" class="large-text">' . esc_textarea($settings['description']) . '</textarea>';
+        echo '<p class="description">Descrição do seu AdSite</p>';
     }
     
     public function validate_settings($input) {
@@ -221,20 +226,12 @@ class URLShortener_Admin {
         
         $validated['api_url'] = esc_url_raw($input['api_url']);
         $validated['api_token'] = sanitize_text_field($input['api_token']);
-        $validated['auto_sync'] = isset($input['auto_sync']) ? 1 : 0;
-        $validated['sync_interval'] = intval($input['sync_interval']);
-        
-        if ($validated['sync_interval'] < 5) {
-            $validated['sync_interval'] = 5;
-        }
-        if ($validated['sync_interval'] > 1440) {
-            $validated['sync_interval'] = 1440;
-        }
+        $validated['adsite_name'] = sanitize_text_field($input['adsite_name']);
+        $validated['description'] = sanitize_textarea_field($input['description']);
         
         // Manter outros valores
         $current_settings = get_option('urlshortener_settings');
         $validated['connection_status'] = $current_settings['connection_status'];
-        $validated['last_sync'] = $current_settings['last_sync'];
         
         return $validated;
     }
@@ -275,47 +272,27 @@ class URLShortener_Admin {
         wp_send_json($result);
     }
     
-    public function manual_sync() {
+    public function register_adsite() {
         check_ajax_referer('urlshortener_admin_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
             wp_die();
         }
         
-        $posts_sync = URLShortener_Posts_Sync::get_instance();
-        $result = $posts_sync->sync_posts();
+        $settings = get_option('urlshortener_settings');
+        
+        $adsite_data = array(
+            'name' => $settings['adsite_name'] ?: get_bloginfo('name'),
+            'url' => home_url(),
+            'description' => $settings['description'] ?: get_bloginfo('description'),
+            'status' => 'active',
+            'wordpress_site' => true
+        );
+        
+        $api = URLShortener_API::get_instance();
+        $result = $api->register_adsite($adsite_data);
         
         wp_send_json($result);
     }
     
-    private function display_sync_logs() {
-        global $wpdb;
-        
-        $table_name = $wpdb->prefix . 'urlshortener_logs';
-        $logs = $wpdb->get_results(
-            "SELECT * FROM $table_name ORDER BY created_at DESC LIMIT 10"
-        );
-        
-        if (empty($logs)) {
-            echo '<p>Nenhum log encontrado.</p>';
-            return;
-        }
-        
-        echo '<table class="wp-list-table widefat fixed striped">';
-        echo '<thead><tr><th>Data</th><th>Post ID</th><th>Ação</th><th>Status</th><th>Mensagem</th></tr></thead>';
-        echo '<tbody>';
-        
-        foreach ($logs as $log) {
-            $status_class = $log->status === 'success' ? 'success' : 'error';
-            echo '<tr>';
-            echo '<td>' . esc_html($log->created_at) . '</td>';
-            echo '<td>' . esc_html($log->post_id) . '</td>';
-            echo '<td>' . esc_html($log->action) . '</td>';
-            echo '<td><span class="status-' . $status_class . '">' . esc_html($log->status) . '</span></td>';
-            echo '<td>' . esc_html($log->message) . '</td>';
-            echo '</tr>';
-        }
-        
-        echo '</tbody></table>';
-    }
 }

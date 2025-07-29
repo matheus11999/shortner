@@ -113,7 +113,22 @@ router.get('/adsites', authenticateToken, requireAdmin, async (req, res) => {
        GROUP BY a.id, a.name, a.url, a.api_token, a.banner_code, a.forced_click, a.timer_duration, a.wp_api_url, a.wp_token, a.status, a.created_at, a.updated_at
        ORDER BY a.created_at DESC`
     );
-    res.json(adsites);
+
+    // Convert snake_case to camelCase for frontend compatibility
+    const formattedAdsites = adsites.map(adsite => ({
+      ...adsite,
+      apiToken: adsite.api_token,
+      bannerCode: adsite.banner_code,
+      forcedClick: adsite.forced_click,
+      timerDuration: adsite.timer_duration,
+      wpApiUrl: adsite.wp_api_url,
+      wpToken: adsite.wp_token,
+      createdAt: adsite.created_at,
+      updatedAt: adsite.updated_at,
+      assignedSitesCount: adsite.assigned_sites_count
+    }));
+
+    res.json(formattedAdsites);
   } catch (err) {
     console.error('🚨 Database error:', err);
     res.status(500).json({ error: 'Database error', details: err.message });

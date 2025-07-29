@@ -171,59 +171,6 @@ class URLShortener_API {
         return array('success' => true, 'data' => $data);
     }
     
-    public function sync_post($post_id) {
-        if (empty($this->api_url) || empty($this->api_token)) {
-            return array('success' => false, 'message' => 'API não configurada');
-        }
-        
-        $post = get_post($post_id);
-        if (!$post) {
-            return array('success' => false, 'message' => 'Post não encontrado');
-        }
-        
-        $post_data = array(
-            'id' => $post->ID,
-            'title' => $post->post_title,
-            'content' => $post->post_content,
-            'excerpt' => $post->post_excerpt,
-            'status' => $post->post_status,
-            'url' => get_permalink($post->ID),
-            'featured_image' => get_the_post_thumbnail_url($post->ID, 'full'),
-            'categories' => wp_get_post_categories($post->ID, array('fields' => 'names')),
-            'tags' => wp_get_post_tags($post->ID, array('fields' => 'names')),
-            'author' => get_the_author_meta('display_name', $post->post_author),
-            'date' => $post->post_date,
-            'modified' => $post->post_modified
-        );
-        
-        $normalized_url = $this->normalize_url($this->api_url);
-        
-        $response = wp_remote_post($normalized_url . '/api/admin/wordpress/sync-post', array(
-            'headers' => array(
-                'Authorization' => 'Bearer ' . $this->api_token,
-                'X-API-Token' => $this->api_token,
-                'Content-Type' => 'application/json'
-            ),
-            'body' => json_encode($post_data)
-        ));
-        
-        if (is_wp_error($response)) {
-            return array('success' => false, 'message' => $response->get_error_message());
-        }
-        
-        $status_code = wp_remote_retrieve_response_code($response);
-        
-        if ($status_code === 200) {
-            return array('success' => true, 'message' => 'Post sincronizado com sucesso');
-        } else {
-            $body = wp_remote_retrieve_body($response);
-            $data = json_decode($body, true);
-            return array(
-                'success' => false, 
-                'message' => isset($data['error']) ? $data['error'] : 'Erro desconhecido'
-            );
-        }
-    }
     
     public function get_connection_status() {
         if (empty($this->api_url) || empty($this->api_token)) {

@@ -1,52 +1,55 @@
 # URL Shortener - Sistema de Encurtamento de URLs com Anúncios
 
 ## Descrição do Projeto
-Sistema completo de encurtamento de URLs com sistema de monetização através de anúncios intercalados. O projeto permite que usuários criem URLs encurtadas que exibem anúncios antes de redirecionar para o destino final.
+Sistema completo de encurtamento de URLs com sistema de monetização através de anúncios intercalados. O projeto permite criar URLs encurtadas e magnet links que exibem anúncios step-by-step antes de redirecionar para o destino final.
 
 ## Arquitetura Técnica
 
-### Frontend
-- **Framework**: React 19 + TypeScript + Vite
-- **UI Components**: shadcn/ui (migrado do Chakra UI)
-- **Styling**: TailwindCSS v3.4
-- **Roteamento**: React Router v7
-- **Estado**: React Context API
-- **HTTP Client**: Axios
-- **Icons**: Lucide React
-
-### Backend
+### Backend (Principal)
 - **Runtime**: Node.js + Express.js
-- **Database**: SQLite com better-sqlite3
+- **Database**: PostgreSQL (migrado de SQLite)
 - **Authentication**: JWT + bcryptjs
-- **Security**: Helmet, Rate Limiting, CORS
-- **Port**: 3001
+- **Security**: Helmet, Rate Limiting, CORS configurado para EasyPanel
+- **Port**: 3001 (produção na EasyPanel)
+- **Deploy**: Automatizado via webhook EasyPanel
+
+### Frontend (Build Incluído)
+- **Build Location**: `/dist/` (Frontend já buildado e incluído)
+- **Tecnologia**: React + TypeScript + Vite (build de produção)
+- **Servido pelo Backend**: Express serve arquivos estáticos do /dist/
 
 ### WordPress Plugin
 - **Localização**: `/wordpress-plugin/`
 - **Arquivo Principal**: `url-shortener-adsite.php`
-- **Funcionalidades**: Integração com API, sincronização de posts, gerenciamento de configurações
+- **Funcionalidades**: Integração com API, configuração de AdSites, teste de conectividade
 
 ## Estrutura de Diretórios
 
 ```
 url-shortner/
-├── src/                     # Frontend React
-│   ├── components/
-│   │   ├── ui/             # Componentes shadcn/ui
-│   │   ├── admin/          # Componentes administrativos
-│   │   └── common/         # Componentes compartilhados
-│   ├── contexts/           # React Contexts
-│   ├── pages/              # Páginas da aplicação
-│   ├── services/           # Serviços de API
-│   ├── types/              # Definições TypeScript
-│   └── lib/                # Utilitários
-├── server/                 # Backend Node.js
-│   ├── config/             # Configurações
-│   ├── routes/             # Rotas da API
-│   └── database.sqlite     # Banco de dados
-└── wordpress-plugin/       # Plugin WordPress
-    ├── includes/           # Classes PHP
-    └── assets/             # CSS/JS do plugin
+├── server.js               # Servidor principal Express.js
+├── package.json            # Dependências do backend
+├── dist/                   # Frontend buildado (React+Vite)
+├── config/                 # Configurações do backend
+│   └── database.js         # Configuração PostgreSQL
+├── routes/                 # Rotas da API
+│   ├── auth.js            # Autenticação
+│   ├── admin.js           # Rotas administrativas
+│   ├── client.js          # Rotas de cliente
+│   ├── redirect.js        # Sistema de redirecionamento
+│   ├── urls.js            # Gerenciamento de URLs
+│   └── analytics.js       # Sistema de analytics
+├── middleware/             # Middlewares Express
+├── utils/                  # Utilitários
+├── wordpress-plugin/       # Plugin WordPress
+│   ├── url-shortener-adsite.php
+│   ├── includes/           # Classes PHP
+│   │   ├── class-admin.php
+│   │   ├── class-api.php
+│   │   └── class-posts-sync.php
+│   └── assets/             # CSS/JS do plugin
+├── deploy.sh              # Script de deploy backend
+└── deploy-frontend.sh     # Script de deploy frontend
 ```
 
 ## Credenciais de Acesso
@@ -56,9 +59,16 @@ url-shortner/
 - **Senha**: `admin123`
 - **Papel**: admin
 
-### URLs do Sistema
-- **Frontend**: `http://localhost:5174/`
-- **Backend API**: `http://localhost:3001/api`
+## URLs do Sistema
+
+### Produção (EasyPanel)
+- **Backend API**: `http://89.28.236.67:3001/api`
+- **Frontend**: Servido pelo backend na porta 3001
+- **Deploy Webhook**: Configurado no EasyPanel
+
+### Desenvolvimento
+- **Backend**: `http://localhost:3001`
+- **Frontend**: Servido pelo backend
 
 ## Funcionalidades Implementadas
 
