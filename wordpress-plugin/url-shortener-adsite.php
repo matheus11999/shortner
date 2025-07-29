@@ -3,7 +3,7 @@
  * Plugin Name: URL Shortener AdSite
  * Plugin URI: https://your-domain.com/
  * Description: Plugin para integração com sistema de URL shortener com anúncios
- * Version: 1.6.0
+ * Version: 1.7.0
  * Author: Your Name
  * License: GPL2
  */
@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
 // Definir constantes
 define('URLSHORTENER_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('URLSHORTENER_PLUGIN_URL', plugin_dir_url(__FILE__));
-define('URLSHORTENER_VERSION', '1.6.0');
+define('URLSHORTENER_VERSION', '1.7.0');
 
 // Incluir arquivos necessários
 require_once URLSHORTENER_PLUGIN_PATH . 'includes/class-admin.php';
@@ -127,12 +127,6 @@ if (!defined('ABSPATH')) {
     require_once __DIR__ . '/wp-load.php';
 }
 
-// Check if plugin is active
-if (!function_exists('is_plugin_active') || !is_plugin_active('url-shortener-adsite/url-shortener-adsite.php')) {
-    wp_redirect(home_url());
-    exit;
-}
-
 // Sanitize and decode the URL
 \$encoded_url = sanitize_text_field(\$_GET['u']);
 \$short_url = base64_decode(\$encoded_url);
@@ -142,34 +136,32 @@ if (!\$short_url) {
     exit;
 }
 
-// Store URL data for later use
+error_log('URLShortener: Processing URL: ' . \$short_url);
+
+// Store URL data for ads display
 \$session_key = 'urlshortener_' . md5(\$short_url . time());
 \$url_data = array(
     'original_url' => \$short_url,
     'encoded_url' => \$encoded_url,
     'timestamp' => time(),
-    'ip' => \$_SERVER['REMOTE_ADDR'] ?? 'unknown'
+    'show_ads' => true
 );
 
 set_transient(\$session_key, \$url_data, HOUR_IN_SECONDS);
 setcookie('urlshortener_session', \$session_key, time() + HOUR_IN_SECONDS, '/', '', is_ssl(), true);
 
-// Get a random post to redirect to
-\$posts = get_posts(array(
-    'numberposts' => 10,
-    'post_status' => 'publish',
-    'orderby' => 'rand',
-    'post_type' => 'post'
-));
-
-if (!empty(\$posts)) {
-    \$random_post = \$posts[0];
-    \$redirect_url = get_permalink(\$random_post->ID);
+// Generate ads page directly instead of redirecting
+\$frontend_class = 'URLShortener_Frontend';
+if (class_exists(\$frontend_class)) {
+    \$frontend = call_user_func(array(\$frontend_class, 'get_instance'));
+    \$ads_html = \$frontend->generate_ads_page_direct(\$url_data);
     
-    wp_redirect(\$redirect_url);
+    // Output the ads page
+    echo \$ads_html;
     exit;
 } else {
-    // No posts found, redirect to home
+    // Fallback: redirect to home if class not available
+    error_log('URLShortener: Frontend class not available');
     wp_redirect(home_url());
     exit;
 }

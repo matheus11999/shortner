@@ -498,7 +498,7 @@ router.post('/wordpress/sync-post', authenticateAdsiteToken, async (req, res) =>
 router.get('/wordpress-plugin-version', authenticateAdsiteToken, async (req, res) => {
   try {
     res.json({
-      version: '1.6.0',
+      version: '1.7.0',
       release_date: new Date().toISOString(),
       minimum_wp_version: '5.0',
       tested_wp_version: '6.4'
@@ -512,6 +512,18 @@ router.get('/wordpress-plugin-version', authenticateAdsiteToken, async (req, res
 router.get('/wordpress-plugin-changelog', authenticateAdsiteToken, async (req, res) => {
   try {
     const changelog = `
+= 1.7.0 =
+* ✅ RESOLVIDO DEFINITIVAMENTE: post.php agora mostra Step1 e Step2!
+* ✅ RESOLVIDO: Sistema de anúncios completo sem redirecionamento
+* ✅ RESOLVIDO: Página HTML completa com design responsivo
+* ✅ RESOLVIDO: Modo escuro/claro integrado
+* ✅ RESOLVIDO: Timer Step1 → Step2 → Download funcionando
+* ✅ RESOLVIDO: Fallback de anúncios para sempre funcionar
+* 🎆 NOVO: Página standalone - não depende do tema WordPress
+* 🎆 NOVO: Design profissional com animações
+* 🎆 NOVO: Sistema de progress bar visual
+* ⚡ MELHORADO: Performance - carrega instantâneo
+
 = 1.6.0 =
 * 🔧 CORRIGIDO: Erro 'AdSite não conectado' - reconnect automático
 * 🔧 CORRIGIDO: Redirecionamento para homepage - agora vai para Step1
