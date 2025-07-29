@@ -3,7 +3,7 @@
  * Plugin Name: URL Shortener AdSite
  * Plugin URI: https://your-domain.com/
  * Description: Plugin para integração com sistema de URL shortener com anúncios
- * Version: 1.5.0
+ * Version: 1.6.0
  * Author: Your Name
  * License: GPL2
  */
@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
 // Definir constantes
 define('URLSHORTENER_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('URLSHORTENER_PLUGIN_URL', plugin_dir_url(__FILE__));
-define('URLSHORTENER_VERSION', '1.5.0');
+define('URLSHORTENER_VERSION', '1.6.0');
 
 // Incluir arquivos necessários
 require_once URLSHORTENER_PLUGIN_PATH . 'includes/class-admin.php';

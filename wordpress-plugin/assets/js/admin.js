@@ -266,7 +266,7 @@ jQuery(document).ready(function($) {
         });
     });
     
-    // Check updates
+    // Check updates with real-time response
     $('#check-updates').on('click', function() {
         var button = $(this);
         var originalText = button.html();
@@ -282,13 +282,35 @@ jQuery(document).ready(function($) {
             },
             success: function(response) {
                 if (response.success) {
-                    showNotice(response.data.message, 'success');
-                    // Trigger WordPress update check
-                    setTimeout(function() {
-                        if (confirm('Verificação concluída. Recarregar a página para ver atualizações disponíveis?')) {
-                            location.reload();
+                    var data = response.data;
+                    
+                    if (data.update_available) {
+                        showNotice(data.message, 'warning', 15000);
+                        
+                        // Show download/install button
+                        var updateSection = $('#update-section');
+                        if (updateSection.length === 0) {
+                            updateSection = $('<div id="update-section" class="notice notice-info inline" style="margin-top: 15px; padding: 15px;"></div>');
+                            button.parent().after(updateSection);
                         }
-                    }, 2000);
+                        
+                        updateSection.html(
+                            '<p><strong>🚀 Atualização Disponível!</strong></p>' +
+                            '<p>Nova versão <strong>' + data.new_version + '</strong> disponível (atual: ' + data.current_version + ')</p>' +
+                            '<p>' +
+                            '<button type="button" id="download-install-update" class="button button-primary">' +
+                            '<span class="dashicons dashicons-download"></span> Baixar e Instalar Atualização' +
+                            '</button>' +
+                            '</p>'
+                        ).show();
+                        
+                        // Add click handler for download/install
+                        $('#download-install-update').on('click', downloadAndInstallUpdate);
+                        
+                    } else {
+                        showNotice(data.message, 'success');
+                        $('#update-section').remove();
+                    }
                 } else {
                     showNotice('Erro na verificação: ' + (response.data || 'Erro desconhecido'), 'error');
                 }
@@ -301,6 +323,42 @@ jQuery(document).ready(function($) {
             }
         });
     });
+    
+    // Download and install update function
+    function downloadAndInstallUpdate() {
+        var button = $('#download-install-update');
+        var originalText = button.html();
+        
+        button.html('<span class="dashicons dashicons-update-alt spin"></span> Baixando...').prop('disabled', true);
+        
+        $.ajax({
+            url: urlshortener_admin_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'urlshortener_download_update',
+                nonce: urlshortener_admin_ajax.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    showNotice('✅ ' + response.data.message, 'success', 10000);
+                    $('#update-section').html(
+                        '<p><strong>✅ Atualização Concluída!</strong></p>' +
+                        '<p>Plugin atualizado com sucesso para a versão mais recente.</p>' +
+                        '<p><button type="button" class="button button-secondary" onclick="location.reload()">' +
+                        '<span class="dashicons dashicons-update"></span> Recarregar Página' +
+                        '</button></p>'
+                    );
+                } else {
+                    showNotice('❌ Erro na instalação: ' + (response.data || 'Erro desconhecido'), 'error');
+                    button.html(originalText).prop('disabled', false);
+                }
+            },
+            error: function() {
+                showNotice('❌ Erro de conexão durante o download', 'error');
+                button.html(originalText).prop('disabled', false);
+            }
+        });
+    }
     
     // Function to refresh status
     function refreshStatus(silent) {

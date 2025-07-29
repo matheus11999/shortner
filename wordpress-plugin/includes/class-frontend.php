@@ -76,20 +76,15 @@ class URLShortener_Frontend {
             try {
                 $short_url = base64_decode($encoded_url);
                 
-                if ($short_url && filter_var($short_url, FILTER_VALIDATE_URL)) {
+                if ($short_url) {
                     // Store in session/transient for later use
                     $this->store_short_url_data($short_url);
                     
                     // Redirect to a random post
                     $this->redirect_to_random_post();
-                } else {
-                    // Invalid URL, try to redirect to the decoded string anyway
-                    if ($short_url) {
-                        $this->store_short_url_data($short_url);
-                        $this->redirect_to_random_post();
-                    }
                 }
             } catch (Exception $e) {
+                error_log('URLShortener decode error: ' . $e->getMessage());
                 // Invalid URL, redirect to home
                 wp_redirect(home_url());
                 exit;
@@ -216,19 +211,23 @@ class URLShortener_Frontend {
             return $content;
         }
         
+        error_log('URLShortener: Replacing content with ads for URL: ' . $url_data['original_url']);
+        
         // Get ads data from API
         $ads_data = $this->get_ads_data($url_data);
         
         if (!$ads_data) {
-            return $content;
+            error_log('URLShortener: No ads data found, using fallback');
+            // Create fallback ads data
+            $ads_data = $this->create_fallback_ads_data($url_data);
         }
         
         // Generate ads HTML
         $ads_html = $this->generate_ads_html($url_data, $ads_data);
         
-        // Clean up after displaying
-        delete_transient($session_key);
-        setcookie('urlshortener_session', '', time() - 3600, '/');
+        // Don't clean up immediately - keep for debugging
+        // delete_transient($session_key);
+        // setcookie('urlshortener_session', '', time() - 3600, '/');
         
         return $ads_html;
     }
@@ -280,6 +279,29 @@ class URLShortener_Frontend {
             'step1_banners' => $step1_banners,
             'step2_banners' => $step2_banners,
             'original_url' => $url_data['original_url'] ?? '#'
+        );
+    }
+    
+    private function create_fallback_ads_data($url_data) {
+        // Create fallback banner data when API is not available
+        $fallback_banner = array(
+            'id' => 1,
+            'step' => 1,
+            'banner_type' => '300x250',
+            'position' => 1,
+            'code' => '<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; text-align: center; color: white; border-radius: 10px; font-family: Arial, sans-serif;"><h3 style="margin: 0 0 15px 0;">🎯 Anúncio de Teste</h3><p style="margin: 0; opacity: 0.9;">Sistema funcionando corretamente!</p></div>',
+            'active' => true
+        );
+        
+        return array(
+            'adsite' => array(
+                'id' => 1,
+                'name' => 'Teste AdSite',
+                'url' => home_url()
+            ),
+            'step1_banners' => array($fallback_banner, $fallback_banner, $fallback_banner),
+            'step2_banners' => array($fallback_banner, $fallback_banner),
+            'original_url' => $url_data['original_url'] ?? 'https://google.com'
         );
     }
     

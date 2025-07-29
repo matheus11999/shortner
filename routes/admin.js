@@ -498,7 +498,7 @@ router.post('/wordpress/sync-post', authenticateAdsiteToken, async (req, res) =>
 router.get('/wordpress-plugin-version', authenticateAdsiteToken, async (req, res) => {
   try {
     res.json({
-      version: '1.5.0',
+      version: '1.6.0',
       release_date: new Date().toISOString(),
       minimum_wp_version: '5.0',
       tested_wp_version: '6.4'
@@ -512,6 +512,17 @@ router.get('/wordpress-plugin-version', authenticateAdsiteToken, async (req, res
 router.get('/wordpress-plugin-changelog', authenticateAdsiteToken, async (req, res) => {
   try {
     const changelog = `
+= 1.6.0 =
+* 🔧 CORRIGIDO: Erro 'AdSite não conectado' - reconnect automático
+* 🔧 CORRIGIDO: Redirecionamento para homepage - agora vai para Step1
+* 🔧 CORRIGIDO: Sistema de anúncios com fallback quando API falha
+* 🚀 NOVO: Sistema de atualização via AJAX - sem reload de página!
+* 🚀 NOVO: Botão 'Baixar e Instalar' - atualização em 1 clique
+* ⚡ MELHORADO: Logging detalhado para debugging do redirecionamento
+* ⚡ MELHORADO: Criação forçada do post.php quando conectado
+* ⚡ MELHORADO: Fallback de anúncios quando API não responde
+* ⚡ MELHORADO: Interface fluida - tudo funciona sem recarregar
+
 = 1.5.0 =
 * 🔧 RESOLVIDO DEFINITIVAMENTE: 404 em post.php - arquivo físico criado automaticamente
 * 🔧 RESOLVIDO: Botões de teste agora aparecem SEMPRE quando conectado

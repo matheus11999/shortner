@@ -23,6 +23,7 @@ class URLShortener_Admin {
         add_action('wp_ajax_urlshortener_test_adsite', array($this, 'test_adsite'));
         add_action('wp_ajax_urlshortener_test_wordpress', array($this, 'test_wordpress_ads'));
         add_action('wp_ajax_urlshortener_check_updates', array($this, 'check_updates'));
+        add_action('wp_ajax_urlshortener_download_update', array($this, 'download_and_install_update'));
         
         // Force update check on admin page load
         add_action('admin_init', array($this, 'force_update_check'));
@@ -273,6 +274,15 @@ class URLShortener_Admin {
             if (isset($result['adsite_data'])) {
                 $settings['connected_adsite'] = $result['adsite_data'];
             }
+            
+            // Force create post.php file when connected
+            if (class_exists('URLShortener_Frontend')) {
+                $frontend = URLShortener_Frontend::get_instance();
+                $frontend->create_post_php_handler();
+            }
+        } else {
+            // Clear connected adsite if connection failed
+            unset($settings['connected_adsite']);
         }
         
         update_option('urlshortener_settings', $settings);
@@ -289,13 +299,29 @@ class URLShortener_Admin {
         
         $settings = get_option('urlshortener_settings');
         
+        // Re-check connection if needed
         if ($settings['connection_status'] !== 'connected' || !isset($settings['connected_adsite'])) {
-            wp_send_json_error('AdSite não conectado');
-            return;
+            // Try to reconnect
+            if (!empty($settings['api_url']) && !empty($settings['api_token'])) {
+                $api = URLShortener_API::get_instance();
+                $result = $api->test_connection($settings['api_url'], $settings['api_token']);
+                
+                if ($result['success'] && isset($result['adsite_data'])) {
+                    $settings['connection_status'] = 'connected';
+                    $settings['connected_adsite'] = $result['adsite_data'];
+                    update_option('urlshortener_settings', $settings);
+                } else {
+                    wp_send_json_error('AdSite não conectado. Verifique suas credenciais.');
+                    return;
+                }
+            } else {
+                wp_send_json_error('AdSite não conectado. Configure API URL e Token primeiro.');
+                return;
+            }
         }
         
         $adsite = $settings['connected_adsite'];
-        $test_url = home_url();
+        $test_url = 'https://google.com';
         
         // Criar URL de teste
         $api_url = rtrim($settings['api_url'], '/');
@@ -320,10 +346,13 @@ class URLShortener_Admin {
             wp_die();
         }
         
-        // Generate test URL for WordPress
+        // Force create post.php file
         if (class_exists('URLShortener_Frontend')) {
             $frontend = URLShortener_Frontend::get_instance();
-            $test_url = $frontend->generate_test_url(home_url());
+            $frontend->create_post_php_handler();
+            
+            // Generate test URL with Google as target
+            $test_url = $frontend->generate_test_url('https://google.com');
             
             wp_send_json_success(array(
                 'test_url' => $test_url,
@@ -356,11 +385,138 @@ class URLShortener_Admin {
             wp_die();
         }
         
-        if (class_exists('URLShortener_Updater')) {
-            $result = URLShortener_Updater::manual_check_update();
-            wp_send_json_success($result);
+        // Force clear update cache and check for new version
+        delete_transient('urlshortener_update_check');
+        delete_transient('update_plugins');
+        
+        // Get current and remote versions
+        $current_version = URLSHORTENER_VERSION;
+        $settings = get_option('urlshortener_settings');
+        
+        if (empty($settings['api_url']) || empty($settings['api_token'])) {
+            wp_send_json_error('Configurações da API não encontradas');
+            return;
+        }
+        
+        // Check remote version
+        $api_url = rtrim($settings['api_url'], '/');
+        if (substr($api_url, -4) === '/api') {
+            $api_url = substr($api_url, 0, -4);
+        }
+        
+        $response = wp_remote_get($api_url . '/api/admin/wordpress-plugin-version', array(
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $settings['api_token'],
+                'X-API-Token' => $settings['api_token']
+            ),
+            'timeout' => 15
+        ));
+        
+        if (is_wp_error($response)) {
+            wp_send_json_error('Erro ao verificar versão: ' . $response->get_error_message());
+            return;
+        }
+        
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+        
+        if (!isset($data['version'])) {
+            wp_send_json_error('Resposta inválida do servidor');
+            return;
+        }
+        
+        $remote_version = $data['version'];
+        $update_available = version_compare($current_version, $remote_version, '<');
+        
+        if ($update_available) {
+            wp_send_json_success(array(
+                'update_available' => true,
+                'current_version' => $current_version,
+                'new_version' => $remote_version,
+                'download_url' => $api_url . '/api/admin/wordpress-plugin-download',
+                'message' => 'Nova versão ' . $remote_version . ' disponível! (atual: ' . $current_version . ')'
+            ));
         } else {
-            wp_send_json_error('Sistema de atualização não disponível');
+            wp_send_json_success(array(
+                'update_available' => false,
+                'current_version' => $current_version,
+                'message' => 'Plugin já está na versão mais recente (' . $current_version . ')'
+            ));
+        }
+    }
+    
+    public function download_and_install_update() {
+        check_ajax_referer('urlshortener_admin_nonce', 'nonce');
+        
+        if (!current_user_can('update_plugins')) {
+            wp_send_json_error('Permissões insuficientes');
+            return;
+        }
+        
+        $settings = get_option('urlshortener_settings');
+        
+        if (empty($settings['api_url']) || empty($settings['api_token'])) {
+            wp_send_json_error('Configurações da API não encontradas');
+            return;
+        }
+        
+        // Get download URL
+        $api_url = rtrim($settings['api_url'], '/');
+        if (substr($api_url, -4) === '/api') {
+            $api_url = substr($api_url, 0, -4);
+        }
+        
+        $download_url = $api_url . '/api/admin/wordpress-plugin-download';
+        
+        // Download the plugin
+        $response = wp_remote_get($download_url, array(
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $settings['api_token'],
+                'X-API-Token' => $settings['api_token']
+            ),
+            'timeout' => 60
+        ));
+        
+        if (is_wp_error($response)) {
+            wp_send_json_error('Erro ao baixar atualização: ' . $response->get_error_message());
+            return;
+        }
+        
+        $plugin_data = wp_remote_retrieve_body($response);
+        
+        if (empty($plugin_data)) {
+            wp_send_json_error('Arquivo de atualização vazio');
+            return;
+        }
+        
+        // Save to temp file
+        $temp_file = wp_tempnam('urlshortener-update');
+        file_put_contents($temp_file, $plugin_data);
+        
+        // Install the update
+        include_once(ABSPATH . 'wp-admin/includes/class-wp-upgrader.php');
+        include_once(ABSPATH . 'wp-admin/includes/plugin-install.php');
+        
+        $upgrader = new Plugin_Upgrader();
+        $result = $upgrader->install($temp_file, array(
+            'overwrite_package' => true
+        ));
+        
+        // Clean up temp file
+        unlink($temp_file);
+        
+        if (is_wp_error($result)) {
+            wp_send_json_error('Erro na instalação: ' . $result->get_error_message());
+            return;
+        }
+        
+        if ($result === true) {
+            wp_send_json_success(array(
+                'message' => 'Plugin atualizado com sucesso!',
+                'new_version' => 'Atualizado'
+            ));
+        } else {
+            wp_send_json_error('Falha na instalação da atualização');
         }
     }
     
