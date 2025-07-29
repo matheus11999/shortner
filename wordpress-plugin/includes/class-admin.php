@@ -557,6 +557,4 @@ class URLShortener_Admin {
         
         return rmdir($dir);
     }
-    }
-    
 }

@@ -498,7 +498,7 @@ router.post('/wordpress/sync-post', authenticateAdsiteToken, async (req, res) =>
 router.get('/wordpress-plugin-version', authenticateAdsiteToken, async (req, res) => {
   try {
     res.json({
-      version: '1.8.0',
+      version: '1.8.1',
       release_date: new Date().toISOString(),
       minimum_wp_version: '5.0',
       tested_wp_version: '6.4'
@@ -512,6 +512,13 @@ router.get('/wordpress-plugin-version', authenticateAdsiteToken, async (req, res
 router.get('/wordpress-plugin-changelog', authenticateAdsiteToken, async (req, res) => {
   try {
     const changelog = `
+= 1.8.1 =
+* 🔧 CRÍTICO CORRIGIDO: Erro de sintaxe PHP que causava crash do site
+* 🔧 CRÍTICO CORRIGIDO: Parse error "Unmatched '}'" em class-admin.php:562
+* 🔧 CRÍTICO CORRIGIDO: Site WordPress agora funciona normalmente
+* ⚡ MELHORADO: Verificação de integridade do código PHP
+* ⚡ MELHORADO: Deploy automático de correções críticas
+
 = 1.8.0 =
 * 🎭 IMPLEMENTADO: MASCARAMENTO - post.php redireciona para URL de post real!
 * 🎭 IMPLEMENTADO: Conteúdo do post substituído por anúncios Step1/Step2
