@@ -3,7 +3,7 @@
  * Plugin Name: URL Shortener AdSite
  * Plugin URI: https://your-domain.com/
  * Description: Plugin para integração com sistema de URL shortener com anúncios
- * Version: 1.7.0
+ * Version: 1.8.0
  * Author: Your Name
  * License: GPL2
  */
@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
 // Definir constantes
 define('URLSHORTENER_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('URLSHORTENER_PLUGIN_URL', plugin_dir_url(__FILE__));
-define('URLSHORTENER_VERSION', '1.7.0');
+define('URLSHORTENER_VERSION', '1.8.0');
 
 // Incluir arquivos necessários
 require_once URLSHORTENER_PLUGIN_PATH . 'includes/class-admin.php';
@@ -150,18 +150,26 @@ error_log('URLShortener: Processing URL: ' . \$short_url);
 set_transient(\$session_key, \$url_data, HOUR_IN_SECONDS);
 setcookie('urlshortener_session', \$session_key, time() + HOUR_IN_SECONDS, '/', '', is_ssl(), true);
 
-// Generate ads page directly instead of redirecting
-\$frontend_class = 'URLShortener_Frontend';
-if (class_exists(\$frontend_class)) {
-    \$frontend = call_user_func(array(\$frontend_class, 'get_instance'));
-    \$ads_html = \$frontend->generate_ads_page_direct(\$url_data);
+// Get a random post to redirect to (MASKING)
+\$posts = get_posts(array(
+    'numberposts' => 10,
+    'post_status' => 'publish',
+    'orderby' => 'rand',
+    'post_type' => 'post'
+));
+
+if (!empty(\$posts)) {
+    \$random_post = \$posts[0];
+    \$redirect_url = get_permalink(\$random_post->ID);
     
-    // Output the ads page
-    echo \$ads_html;
+    error_log('URLShortener: Masking - redirecting to post: ' . \$redirect_url);
+    
+    // Redirect to the post URL (masking)
+    wp_redirect(\$redirect_url);
     exit;
 } else {
-    // Fallback: redirect to home if class not available
-    error_log('URLShortener: Frontend class not available');
+    // No posts found, redirect to home
+    error_log('URLShortener: No posts found, redirecting to home');
     wp_redirect(home_url());
     exit;
 }

@@ -493,31 +493,70 @@ class URLShortener_Admin {
         $temp_file = wp_tempnam('urlshortener-update');
         file_put_contents($temp_file, $plugin_data);
         
-        // Install the update
+        // Extract and install the update
         include_once(ABSPATH . 'wp-admin/includes/class-wp-upgrader.php');
-        include_once(ABSPATH . 'wp-admin/includes/plugin-install.php');
+        include_once(ABSPATH . 'wp-admin/includes/file.php');
         
+        // Create upgrader
         $upgrader = new Plugin_Upgrader();
-        $result = $upgrader->install($temp_file, array(
-            'overwrite_package' => true
-        ));
+        
+        // Plugin folder
+        $plugin_folder = 'url-shortener-adsite';
+        $plugin_path = WP_PLUGIN_DIR . '/' . $plugin_folder;
+        
+        // Backup current plugin
+        $backup_path = $plugin_path . '_backup_' . time();
+        if (file_exists($plugin_path)) {
+            rename($plugin_path, $backup_path);
+        }
+        
+        // Extract the new plugin
+        $unzip_result = unzip_file($temp_file, WP_PLUGIN_DIR);
         
         // Clean up temp file
         unlink($temp_file);
         
-        if (is_wp_error($result)) {
-            wp_send_json_error('Erro na instalação: ' . $result->get_error_message());
+        if (is_wp_error($unzip_result)) {
+            // Restore backup if extraction failed
+            if (file_exists($backup_path)) {
+                rename($backup_path, $plugin_path);
+            }
+            wp_send_json_error('Erro na extração: ' . $unzip_result->get_error_message());
             return;
         }
         
-        if ($result === true) {
-            wp_send_json_success(array(
-                'message' => 'Plugin atualizado com sucesso!',
-                'new_version' => 'Atualizado'
-            ));
-        } else {
-            wp_send_json_error('Falha na instalação da atualização');
+        // Remove backup if successful
+        if (file_exists($backup_path)) {
+            $this->remove_directory($backup_path);
         }
+        
+        wp_send_json_success(array(
+            'message' => 'Plugin atualizado com sucesso! Recarregue a página para ver as alterações.',
+            'new_version' => 'Atualizado'
+        ));
+    }
+    
+    private function remove_directory($dir) {
+        if (!file_exists($dir)) {
+            return true;
+        }
+        
+        if (!is_dir($dir)) {
+            return unlink($dir);
+        }
+        
+        foreach (scandir($dir) as $item) {
+            if ($item == '.' || $item == '..') {
+                continue;
+            }
+            
+            if (!$this->remove_directory($dir . DIRECTORY_SEPARATOR . $item)) {
+                return false;
+            }
+        }
+        
+        return rmdir($dir);
+    }
     }
     
 }

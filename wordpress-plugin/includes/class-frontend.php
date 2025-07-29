@@ -732,6 +732,354 @@ class URLShortener_Frontend {
         return ob_get_clean();
     }
     
+    // Generate inline ads HTML for WordPress post content replacement
+    public function generate_inline_ads_html($url_data, $ads_data) {
+        // Get settings for timer and behavior
+        $settings = get_option('urlshortener_settings');
+        $timer_duration = 5; // Default timer
+        $forced_click = false; // Default behavior
+        
+        if (isset($settings['connected_adsite'])) {
+            $adsite = $settings['connected_adsite'];
+            $timer_duration = $adsite['timer_duration'] ?? 5;
+            $forced_click = $adsite['forced_click'] ?? false;
+        }
+        
+        $adsite = $ads_data['adsite'];
+        $step1_banners = $ads_data['step1_banners'];
+        $step2_banners = $ads_data['step2_banners'];
+        $original_url = $ads_data['original_url'];
+        
+        // Select random banners (max 3 per step)
+        $selected_step1 = array_slice($step1_banners, 0, min(3, count($step1_banners)));
+        $selected_step2 = array_slice($step2_banners, 0, min(3, count($step2_banners)));
+        
+        ob_start();
+        ?>
+        <div id="urlshortener-ads-container" class="urlshortener-ads-wrapper">
+            <style>
+                .urlshortener-ads-wrapper {
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    padding: 30px;
+                    border-radius: 15px;
+                    margin: 20px 0;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    position: relative;
+                    overflow: hidden;
+                }
+                
+                .urlshortener-ads-wrapper::before {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0,0,0,0.1);
+                    z-index: 1;
+                }
+                
+                .urlshortener-container {
+                    position: relative;
+                    z-index: 2;
+                    max-width: 800px;
+                    margin: 0 auto;
+                }
+                
+                .urlshortener-header {
+                    text-align: center;
+                    margin-bottom: 30px;
+                    padding-bottom: 20px;
+                    border-bottom: 2px solid rgba(255,255,255,0.3);
+                }
+                
+                .urlshortener-title {
+                    font-size: 2rem;
+                    font-weight: bold;
+                    margin-bottom: 10px;
+                    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+                }
+                
+                .urlshortener-subtitle {
+                    opacity: 0.9;
+                    font-size: 1.1rem;
+                }
+                
+                .urlshortener-step {
+                    display: none;
+                }
+                
+                .urlshortener-step.active {
+                    display: block;
+                    animation: fadeIn 0.5s ease;
+                }
+                
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: translateY(20px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                
+                .urlshortener-banner {
+                    margin: 20px 0;
+                    padding: 20px;
+                    background: rgba(255,255,255,0.1);
+                    border-radius: 10px;
+                    text-align: center;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    border: 2px solid rgba(255,255,255,0.2);
+                    backdrop-filter: blur(10px);
+                }
+                
+                .urlshortener-banner:hover {
+                    transform: translateY(-3px);
+                    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+                    border-color: rgba(255,255,255,0.4);
+                }
+                
+                .urlshortener-banner.clicked {
+                    background: rgba(40, 167, 69, 0.3);
+                    border-color: #28a745;
+                }
+                
+                .urlshortener-banner-label {
+                    font-size: 0.9rem;
+                    margin-bottom: 10px;
+                    opacity: 0.8;
+                    font-weight: 500;
+                }
+                
+                .urlshortener-timer {
+                    text-align: center;
+                    margin: 30px 0;
+                    padding: 25px;
+                    background: rgba(255,255,255,0.1);
+                    border-radius: 15px;
+                    backdrop-filter: blur(10px);
+                    border: 2px solid rgba(255,255,255,0.2);
+                }
+                
+                .urlshortener-countdown {
+                    font-size: 3rem;
+                    font-weight: bold;
+                    margin-bottom: 15px;
+                    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+                    color: #ffc107;
+                }
+                
+                .urlshortener-button {
+                    background: linear-gradient(135deg, #28a745, #20c997);
+                    color: white;
+                    border: none;
+                    padding: 15px 30px;
+                    border-radius: 25px;
+                    font-size: 1.1rem;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    display: inline-block;
+                    text-decoration: none;
+                    min-width: 250px;
+                    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+                }
+                
+                .urlshortener-button:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+                }
+                
+                .urlshortener-button:disabled {
+                    background: rgba(108, 117, 125, 0.5);
+                    cursor: not-allowed;
+                    opacity: 0.6;
+                }
+                
+                .urlshortener-button.success {
+                    background: linear-gradient(135deg, #007bff, #0056b3);
+                }
+                
+                .urlshortener-progress {
+                    width: 100%;
+                    height: 8px;
+                    background: rgba(255,255,255,0.2);
+                    border-radius: 4px;
+                    margin: 20px 0;
+                    overflow: hidden;
+                }
+                
+                .urlshortener-progress-bar {
+                    height: 100%;
+                    background: linear-gradient(90deg, #007bff, #28a745);
+                    transition: width 0.3s ease;
+                    border-radius: 4px;
+                }
+                
+                /* Mobile responsive */
+                @media (max-width: 768px) {
+                    .urlshortener-ads-wrapper {
+                        padding: 20px;
+                        margin: 10px 0;
+                    }
+                    
+                    .urlshortener-title {
+                        font-size: 1.5rem;
+                    }
+                    
+                    .urlshortener-countdown {
+                        font-size: 2rem;
+                    }
+                    
+                    .urlshortener-button {
+                        width: 100%;
+                        padding: 12px 20px;
+                    }
+                }
+            </style>
+            
+            <div class="urlshortener-container">
+                <div class="urlshortener-header">
+                    <h2 class="urlshortener-title">🎯 Seu conteúdo está quase pronto!</h2>
+                    <p class="urlshortener-subtitle">Aguarde alguns segundos e visualize nossos parceiros</p>
+                    <div class="urlshortener-progress">
+                        <div class="urlshortener-progress-bar" id="progress-bar" style="width: 0%"></div>
+                    </div>
+                </div>
+                
+                <!-- Step 1 -->
+                <div id="step1" class="urlshortener-step active">
+                    <h3 style="text-align: center; margin-bottom: 25px;">📋 Etapa 1 de 2</h3>
+                    
+                    <?php foreach ($selected_step1 as $index => $banner): ?>
+                        <div class="urlshortener-banner" onclick="trackBannerClick(1, <?php echo $index; ?>)">
+                            <div class="urlshortener-banner-label">
+                                📢 Anúncio <?php echo $banner['banner_type']; ?> #<?php echo $banner['position']; ?>
+                            </div>
+                            <div class="urlshortener-banner-content">
+                                <?php echo wp_kses_post($banner['code']); ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                    
+                    <div class="urlshortener-timer">
+                        <div class="urlshortener-countdown" id="countdown1">5</div>
+                        <p>segundos para continuar</p>
+                        <button class="urlshortener-button" id="continue-btn" disabled onclick="goToStep2()">
+                            Continuar para Etapa 2
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Step 2 -->
+                <div id="step2" class="urlshortener-step">
+                    <h3 style="text-align: center; margin-bottom: 25px;">🎯 Etapa Final</h3>
+                    
+                    <?php foreach ($selected_step2 as $index => $banner): ?>
+                        <div class="urlshortener-banner" onclick="trackBannerClick(2, <?php echo $index; ?>)">
+                            <div class="urlshortener-banner-label">
+                                📢 Anúncio <?php echo $banner['banner_type']; ?> #<?php echo $banner['position']; ?> - Clique aqui
+                            </div>
+                            <div class="urlshortener-banner-content">
+                                <?php echo wp_kses_post($banner['code']); ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                    
+                    <div class="urlshortener-timer">
+                        <div class="urlshortener-countdown" id="countdown2"><?php echo $timer_duration; ?></div>
+                        <p id="step2-message">segundos para liberar o conteúdo</p>
+                        <a href="<?php echo esc_url($original_url); ?>" class="urlshortener-button success" id="download-btn" style="pointer-events: none; opacity: 0.6;">
+                            📥 Acessar Conteúdo Original
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <script>
+                let step1Timer = 5;
+                let step2Timer = <?php echo $timer_duration; ?>;
+                let currentStep = 1;
+                let bannerClicked = false;
+                
+                // Timer functions
+                function updateCountdown() {
+                    if (currentStep === 1) {
+                        document.getElementById('countdown1').textContent = step1Timer;
+                        document.getElementById('progress-bar').style.width = ((5 - step1Timer) / 5 * 50) + '%';
+                        
+                        if (step1Timer <= 0) {
+                            document.getElementById('continue-btn').disabled = false;
+                            document.getElementById('continue-btn').style.opacity = '1';
+                            document.getElementById('continue-btn').style.pointerEvents = 'auto';
+                        } else {
+                            step1Timer--;
+                        }
+                    } else if (currentStep === 2) {
+                        document.getElementById('countdown2').textContent = step2Timer;
+                        document.getElementById('progress-bar').style.width = (50 + ((<?php echo $timer_duration; ?> - step2Timer) / <?php echo $timer_duration; ?> * 50)) + '%';
+                        
+                        if (step2Timer <= 0) {
+                            enableDownload();
+                        } else {
+                            step2Timer--;
+                        }
+                    }
+                }
+                
+                function goToStep2() {
+                    document.getElementById('step1').classList.remove('active');
+                    document.getElementById('step2').classList.add('active');
+                    currentStep = 2;
+                }
+                
+                function enableDownload() {
+                    const downloadBtn = document.getElementById('download-btn');
+                    downloadBtn.style.opacity = '1';
+                    downloadBtn.style.pointerEvents = 'auto';
+                    document.getElementById('step2-message').textContent = 'Conteúdo liberado! Clique no botão abaixo.';
+                }
+                
+                function trackBannerClick(step, index) {
+                    const banner = event.currentTarget;
+                    banner.classList.add('clicked');
+                    
+                    // Visual feedback
+                    const label = banner.querySelector('.urlshortener-banner-label');
+                    if (label) {
+                        label.textContent = label.textContent.replace('Clique aqui', '✅ Clicado!');
+                    }
+                    
+                    bannerClicked = true;
+                    
+                    // Add click effect
+                    banner.style.transform = 'scale(0.98)';
+                    setTimeout(() => {
+                        banner.style.transform = 'translateY(-3px)';
+                    }, 150);
+                }
+                
+                // Start countdown
+                const countdownInterval = setInterval(updateCountdown, 1000);
+                
+                // Handle download click
+                document.getElementById('download-btn').addEventListener('click', function(e) {
+                    if (this.style.pointerEvents === 'none') {
+                        e.preventDefault();
+                        return false;
+                    }
+                    
+                    // Show loading
+                    this.innerHTML = '🔄 Redirecionando...';
+                    
+                    // Clear interval
+                    clearInterval(countdownInterval);
+                });
+            </script>
+        </div>
+        <?php
+        return ob_get_clean();
+    }
+    
     private function get_ads_data($url_data) {
         $settings = get_option('urlshortener_settings');
         

@@ -498,7 +498,7 @@ router.post('/wordpress/sync-post', authenticateAdsiteToken, async (req, res) =>
 router.get('/wordpress-plugin-version', authenticateAdsiteToken, async (req, res) => {
   try {
     res.json({
-      version: '1.7.0',
+      version: '1.8.0',
       release_date: new Date().toISOString(),
       minimum_wp_version: '5.0',
       tested_wp_version: '6.4'
@@ -512,6 +512,17 @@ router.get('/wordpress-plugin-version', authenticateAdsiteToken, async (req, res
 router.get('/wordpress-plugin-changelog', authenticateAdsiteToken, async (req, res) => {
   try {
     const changelog = `
+= 1.8.0 =
+* 🎭 IMPLEMENTADO: MASCARAMENTO - post.php redireciona para URL de post real!
+* 🎭 IMPLEMENTADO: Conteúdo do post substituído por anúncios Step1/Step2
+* 🎭 IMPLEMENTADO: Sistema funciona como se fosse uma postagem normal
+* 🔧 CORRIGIDO: Sistema de update agora descompacta ZIP corretamente
+* 🔧 CORRIGIDO: Backup automático durante atualização
+* 🎆 NOVO: Design integrado ao tema WordPress
+* 🎆 NOVO: Anúncios com visual profissional
+* ⚡ MELHORADO: Performance e compatibilidade
+* ⚡ MELHORADO: Sistema de logging detalhado
+
 = 1.7.0 =
 * ✅ RESOLVIDO DEFINITIVAMENTE: post.php agora mostra Step1 e Step2!
 * ✅ RESOLVIDO: Sistema de anúncios completo sem redirecionamento
