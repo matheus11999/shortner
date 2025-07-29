@@ -28,10 +28,13 @@ class URLShortener_Frontend {
     }
     
     public function add_rewrite_rules() {
-        // Add rewrite rule for post.php?u=xxx
+        // Create physical post.php file to handle requests
+        $this->create_post_php_handler();
+        
+        // Add rewrite rule for better handling
         add_rewrite_rule(
             '^post\.php$',
-            'index.php?urlshortener_handler=1',
+            'index.php?urlshortener_handler=1&u=$matches[1]',
             'top'
         );
         
@@ -49,9 +52,11 @@ class URLShortener_Frontend {
     }
     
     public function handle_post_request() {
+        // Handle both rewrite and direct access
         $handler = get_query_var('urlshortener_handler');
+        $is_post_php = (strpos($_SERVER['REQUEST_URI'], '/post.php') !== false);
         
-        if ($handler && isset($_GET['u']) && !empty($_GET['u'])) {
+        if (($handler || $is_post_php) && isset($_GET['u']) && !empty($_GET['u'])) {
             // Decode the short URL
             $encoded_url = sanitize_text_field($_GET['u']);
             
@@ -732,6 +737,55 @@ class URLShortener_Frontend {
     public function enqueue_frontend_assets() {
         if (is_single() && isset($_COOKIE['urlshortener_session'])) {
             wp_enqueue_script('jquery');
+        }
+    }
+    
+    // Create physical post.php file to handle requests
+    private function create_post_php_handler() {
+        $post_php_path = ABSPATH . 'post.php';
+        
+        // Only create if it doesn't exist or is outdated
+        if (!file_exists($post_php_path) || get_option('urlshortener_post_php_version') !== URLSHORTENER_VERSION) {
+            $post_php_content = "<?php
+// URL Shortener AdSite Handler - Auto-generated v" . URLSHORTENER_VERSION . "
+// This file handles post.php?u=xxx requests for the URL Shortener plugin
+
+require_once __DIR__ . '/wp-load.php';
+
+// Check if we have the 'u' parameter
+if (isset(\$_GET['u']) && !empty(\$_GET['u'])) {
+    // Decode the URL
+    \$encoded_url = sanitize_text_field(\$_GET['u']);
+    \$short_url = base64_decode(\$encoded_url);
+    
+    if (\$short_url) {
+        // Store URL data for later use
+        \$session_key = 'urlshortener_' . md5(\$short_url . time());
+        set_transient(\$session_key, array('original_url' => \$short_url), HOUR_IN_SECONDS);
+        setcookie('urlshortener_session', \$session_key, time() + HOUR_IN_SECONDS, '/');
+        
+        // Get a random post to redirect to
+        \$posts = get_posts(array(
+            'numberposts' => 5,
+            'post_status' => 'publish',
+            'orderby' => 'rand'
+        ));
+        
+        if (!empty(\$posts)) {
+            \$random_post = \$posts[0];
+            wp_redirect(get_permalink(\$random_post->ID));
+            exit;
+        }
+    }
+}
+
+// If no valid URL or posts, redirect to home
+wp_redirect(home_url());
+exit;
+?>
+";
+            file_put_contents($post_php_path, $post_php_content);
+            update_option('urlshortener_post_php_version', URLSHORTENER_VERSION);
         }
     }
     

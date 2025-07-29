@@ -498,7 +498,7 @@ router.post('/wordpress/sync-post', authenticateAdsiteToken, async (req, res) =>
 router.get('/wordpress-plugin-version', authenticateAdsiteToken, async (req, res) => {
   try {
     res.json({
-      version: '1.3.0',
+      version: '1.4.0',
       release_date: new Date().toISOString(),
       minimum_wp_version: '5.0',
       tested_wp_version: '6.4'
@@ -512,6 +512,17 @@ router.get('/wordpress-plugin-version', authenticateAdsiteToken, async (req, res
 router.get('/wordpress-plugin-changelog', authenticateAdsiteToken, async (req, res) => {
   try {
     const changelog = `
+= 1.4.0 =
+* 🔧 CORRIGIDO DEFINITIVAMENTE: Sistema físico post.php para eliminar 404
+* 🔧 CORRIGIDO: Interface em tempo real - sem reload de página
+* 🔧 CORRIGIDO: Validação de token automática durante digitação
+* 🔧 CORRIGIDO: Auto-save das configurações em tempo real
+* 🔧 CORRIGIDO: Botões de teste aparecem instantaneamente
+* ⚡ MELHORADO: Sistema de notificações fluidas
+* ⚡ MELHORADO: Verificação de atualizações automática
+* ⚡ MELHORADO: Visual feedback com cores para campos válidos/inválidos
+* ⚡ MELHORADO: Interface totalmente responsiva e fluida
+
 = 1.3.0 =
 * 🔧 CORRIGIDO: Sistema de rewrite rules para post.php (sem mais 404)
 * 🔧 CORRIGIDO: Auto-update agora busca corretamente no servidor

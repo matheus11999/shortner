@@ -1,11 +1,70 @@
 jQuery(document).ready(function($) {
     
-    // Auto-refresh status every 30 seconds if connected
+    // Auto-refresh status every 10 seconds if connected
     setInterval(function() {
         if ($('#connection-status').hasClass('connected')) {
             refreshStatus(true); // Silent refresh
         }
-    }, 30000);
+    }, 10000);
+    
+    // Real-time token validation
+    let tokenValidationTimeout;
+    $('#api_token').on('input', function() {
+        clearTimeout(tokenValidationTimeout);
+        const token = $(this).val();
+        const apiUrl = $('#api_url').val();
+        
+        if (token.length > 10 && apiUrl) {
+            tokenValidationTimeout = setTimeout(function() {
+                validateTokenRealTime(apiUrl, token);
+            }, 1000);
+        }
+    });
+    
+    // Real-time URL validation
+    $('#api_url').on('input', function() {
+        const url = $(this).val();
+        if (url && isValidUrl(url)) {
+            $(this).removeClass('invalid').addClass('valid');
+        } else if (url) {
+            $(this).removeClass('valid').addClass('invalid');
+        }
+    });
+    
+    // Enhanced CSS for real-time feedback
+    $('<style>').text(`
+        #api_token.valid, #api_url.valid {
+            border-color: #28a745 !important;
+            box-shadow: 0 0 0 1px #28a745 !important;
+        }
+        #api_token.invalid, #api_url.invalid {
+            border-color: #dc3545 !important;
+            box-shadow: 0 0 0 1px #dc3545 !important;
+        }
+        .inline-notice {
+            position: fixed;
+            top: 32px;
+            right: 20px;
+            z-index: 999999;
+            min-width: 300px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .connection-status.connected {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        #test-adsite, #test-wordpress {
+            animation: fadeIn 0.5s ease;
+        }
+    `).appendTo('head');
     
     // Testar conexão
     $('#test-connection').on('click', function() {
@@ -44,9 +103,12 @@ jQuery(document).ready(function($) {
                     
                     showNotice('✅ ' + response.message, 'success');
                     
-                    // Show test buttons
-                    $('#test-adsite').show();
-                    $('#test-wordpress').show();
+                    // Show test buttons with animation
+                    $('#test-adsite').show().css('animation', 'fadeIn 0.5s');
+                    $('#test-wordpress').show().css('animation', 'fadeIn 0.5s');
+                    
+                    // Auto-save settings
+                    saveSettingsRealTime();
                     
                 } else {
                     statusDiv.removeClass('connected').addClass('disconnected')
@@ -248,9 +310,9 @@ jQuery(document).ready(function($) {
                         showNotice('Status atualizado: ' + response.message, 'success');
                     }
                     
-                    // Show test buttons
-                    $('#test-adsite').show();
-                    $('#test-wordpress').show();
+                    // Show test buttons with animation
+                    $('#test-adsite').show().css('animation', 'fadeIn 0.5s');
+                    $('#test-wordpress').show().css('animation', 'fadeIn 0.5s');
                     
                 } else {
                     statusDiv.removeClass('connected').addClass('disconnected')
@@ -271,6 +333,103 @@ jQuery(document).ready(function($) {
             complete: function() {
                 if (!silent) {
                     button.html(originalHtml).prop('disabled', false);
+                }
+            }
+        });
+    }
+    
+    // Real-time token validation function
+    function validateTokenRealTime(apiUrl, apiToken) {
+        $.ajax({
+            url: urlshortener_admin_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'urlshortener_test_connection',
+                nonce: urlshortener_admin_ajax.nonce,
+                api_url: apiUrl,
+                api_token: apiToken
+            },
+            success: function(response) {
+                const statusDiv = $('#connection-status');
+                const tokenInput = $('#api_token');
+                
+                if (response.success) {
+                    tokenInput.removeClass('invalid').addClass('valid');
+                    statusDiv.removeClass('disconnected').addClass('connected')
+                        .html('<span class="dashicons dashicons-yes-alt"></span> <strong>Conectado</strong>');
+                    
+                    // Show test buttons immediately
+                    $('#test-adsite').show().css('animation', 'fadeIn 0.5s');
+                    $('#test-wordpress').show().css('animation', 'fadeIn 0.5s');
+                    
+                    // Auto-save settings
+                    saveSettingsRealTime();
+                    
+                } else {
+                    tokenInput.removeClass('valid').addClass('invalid');
+                    statusDiv.removeClass('connected').addClass('disconnected')
+                        .html('<span class="dashicons dashicons-dismiss"></span> <strong>Token Inválido</strong>');
+                    
+                    $('#test-adsite').hide();
+                    $('#test-wordpress').hide();
+                }
+            },
+            error: function() {
+                $('#api_token').removeClass('valid').addClass('invalid');
+            }
+        });
+    }
+    
+    // Auto-save settings function
+    function saveSettingsRealTime() {
+        const formData = $('form').serialize() + '&action=update&option_page=urlshortener_settings&_wpnonce=' + $('input[name="_wpnonce"]').val();
+        
+        $.ajax({
+            url: 'options.php',
+            type: 'POST',
+            data: formData,
+            success: function() {
+                showNotice('✅ Configurações salvas automaticamente', 'success', 2000);
+            }
+        });
+    }
+    
+    // Enhanced showNotice with auto-dismiss time
+    function showNotice(message, type, duration = 5000) {
+        // Remove existing notices of same type
+        $('.notice-' + (type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'error')).remove();
+        
+        var noticeClass = type === 'success' ? 'notice-success' : (type === 'warning' ? 'notice-warning' : 'notice-error');
+        var notice = $('<div class="notice ' + noticeClass + ' is-dismissible inline-notice"><p>' + message + '</p></div>');
+        
+        $('.wrap h1').after(notice);
+        notice.hide().fadeIn(300);
+        
+        // Auto-remove
+        setTimeout(function() {
+            notice.fadeOut(300, function() {
+                $(this).remove();
+            });
+        }, duration);
+    }
+    
+    // Force update check on page load and make it automatic
+    function autoCheckUpdates() {
+        $.ajax({
+            url: urlshortener_admin_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'urlshortener_check_updates',
+                nonce: urlshortener_admin_ajax.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    // Trigger WordPress native update check
+                    setTimeout(function() {
+                        if ($('.plugin-update-tr').length > 0) {
+                            showNotice('🚀 Nova versão disponível! Clique em "Atualizar agora" abaixo.', 'warning', 10000);
+                        }
+                    }, 2000);
                 }
             }
         });
@@ -311,28 +470,6 @@ jQuery(document).ready(function($) {
         }
     });
     
-    // Funções auxiliares
-    function showNotice(message, type) {
-        var noticeClass = type === 'success' ? 'notice-success' : (type === 'warning' ? 'notice-warning' : 'notice-error');
-        var notice = $('<div class="notice ' + noticeClass + ' is-dismissible"><p>' + message + '</p></div>');
-        
-        $('.wrap h1').after(notice);
-        
-        // Auto-remover após 5 segundos
-        setTimeout(function() {
-            notice.fadeOut(function() {
-                $(this).remove();
-            });
-        }, 5000);
-        
-        // Adicionar botão de dismiss
-        notice.on('click', '.notice-dismiss', function() {
-            notice.fadeOut(function() {
-                $(this).remove();
-            });
-        });
-    }
-    
     function isValidUrl(string) {
         try {
             new URL(string);
@@ -371,11 +508,18 @@ jQuery(document).ready(function($) {
         }
     });
     
-    // Initial status check on page load
+    // Initial status check on page load - faster
     $(document).ready(function() {
+        // Immediate check
         setTimeout(function() {
             refreshStatus(true);
-        }, 1000);
+        }, 500);
+        
+        // Auto-check for updates
+        setTimeout(autoCheckUpdates, 1000);
+        
+        // Check for updates every 30 seconds
+        setInterval(autoCheckUpdates, 30000);
     });
     
 });
