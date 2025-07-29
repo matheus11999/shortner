@@ -20,7 +20,7 @@ class URLShortener_Admin {
         add_action('admin_init', array($this, 'init_settings'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
         add_action('wp_ajax_urlshortener_test_connection', array($this, 'test_connection'));
-        add_action('wp_ajax_urlshortener_register_adsite', array($this, 'register_adsite'));
+        // Removed register_adsite functionality - using existing AdSite token"
     }
     
     public function add_admin_menu() {
@@ -53,7 +53,7 @@ class URLShortener_Admin {
         
         add_settings_field(
             'api_token',
-            'Token da API',
+            'Token do AdSite',
             array($this, 'api_token_callback'),
             'urlshortener_settings',
             'urlshortener_api_section'
@@ -66,21 +66,7 @@ class URLShortener_Admin {
             'urlshortener_settings'
         );
         
-        add_settings_field(
-            'adsite_name',
-            'Nome do AdSite',
-            array($this, 'adsite_name_callback'),
-            'urlshortener_settings',
-            'urlshortener_adsite_section'
-        );
-        
-        add_settings_field(
-            'description',
-            'Descrição',
-            array($this, 'description_callback'),
-            'urlshortener_settings',
-            'urlshortener_adsite_section'
-        );
+        // Removed manual name and description fields - using WordPress info automatically
     }
     
     public function enqueue_admin_scripts($hook) {
@@ -121,8 +107,8 @@ class URLShortener_Admin {
                     <?php if ($settings['connection_status'] === 'connected'): ?>
                         <span class="dashicons dashicons-yes-alt"></span> 
                         <strong>Conectado</strong>
-                        <?php if (isset($settings['connected_user'])): ?>
-                            <br><small>Usuário: <?php echo esc_html($settings['connected_user']['name']); ?> (<?php echo esc_html($settings['connected_user']['email']); ?>)</small>
+                        <?php if (isset($settings['connected_adsite'])): ?>
+                            <br><small>AdSite: <?php echo esc_html($settings['connected_adsite']['name']); ?> (<?php echo esc_html($settings['connected_adsite']['url']); ?>)</small>
                         <?php endif; ?>
                     <?php else: ?>
                         <span class="dashicons dashicons-dismiss"></span> 
@@ -146,22 +132,25 @@ class URLShortener_Admin {
                 <?php endif; ?>
                 
                 <?php if ($settings['connection_status'] === 'connected'): ?>
-                    <hr style="margin: 20px 0;">
-                    <h4>Registrar como AdSite</h4>
-                    <p>Registre este WordPress como um AdSite no sistema URL Shortener para exibir anúncios.</p>
-                    
-                    <button type="button" id="register-adsite" class="button button-primary">
-                        <span class="dashicons dashicons-admin-site"></span> Registrar AdSite
-                    </button>
-                    
-                    <div id="register-status" style="margin-top: 10px;"></div>
-                    
-                    <div class="notice notice-info inline" style="margin-top: 15px;">
-                        <p><strong>Nota:</strong> O sistema agora gera posts simulados automaticamente. Não é necessário sincronizar posts do WordPress.</p>
+                    <div class="notice notice-success inline" style="margin-top: 15px;">
+                        <p><strong>✅ Plugin conectado com sucesso!</strong></p>
+                        <p>O AdSite já está configurado no sistema. Você pode agora:</p>
+                        <ul>
+                            <li>📊 Visualizar banner configs no painel administrativo</li>
+                            <li>🎯 Configurar anúncios específicos para este AdSite</li>
+                            <li>📈 Acompanhar métricas de conversão</li>
+                        </ul>
                     </div>
                 <?php else: ?>
                     <div class="notice notice-warning inline">
-                        <p><strong>Atenção:</strong> Conecte-se à API para registrar como AdSite.</p>
+                        <p><strong>Atenção:</strong> Configure a URL da API e Token do AdSite para conectar.</p>
+                        <p><strong>Como obter o Token:</strong></p>
+                        <ol>
+                            <li>Acesse o painel administrativo do URL Shortener</li>
+                            <li>Vá para "AdSites" → "Gerenciar AdSites"</li>
+                            <li>Copie o token do AdSite desejado</li>
+                            <li>Cole aqui no campo "Token do AdSite"</li>
+                        </ol>
                     </div>
                 <?php endif; ?>
             </div>
@@ -194,7 +183,11 @@ class URLShortener_Admin {
     }
     
     public function adsite_section_callback() {
-        echo '<p>Configure as informações do seu AdSite para o sistema URL Shortener.</p>';
+        echo '<p><strong>Informações automáticas do WordPress:</strong></p>';
+        echo '<p><strong>Nome:</strong> ' . esc_html(get_bloginfo('name')) . '</p>';
+        echo '<p><strong>URL:</strong> ' . esc_html(home_url()) . '</p>';
+        echo '<p><strong>Descrição:</strong> ' . esc_html(get_bloginfo('description')) . '</p>';
+        echo '<p><em>Essas informações serão usadas automaticamente para registrar o AdSite.</em></p>';
     }
     
     public function api_url_callback() {
@@ -206,28 +199,19 @@ class URLShortener_Admin {
     public function api_token_callback() {
         $settings = get_option('urlshortener_settings');
         echo '<input type="password" id="api_token" name="urlshortener_settings[api_token]" value="' . esc_attr($settings['api_token']) . '" class="regular-text" />';
-        echo '<p class="description">Token de autenticação fornecido pelo sistema URL Shortener</p>';
+        echo '<p class="description">Token do AdSite (não é o token de usuário admin). Copie o token do AdSite criado no painel administrativo.</p>';
     }
     
-    public function adsite_name_callback() {
-        $settings = get_option('urlshortener_settings');
-        echo '<input type="text" id="adsite_name" name="urlshortener_settings[adsite_name]" value="' . esc_attr($settings['adsite_name']) . '" class="regular-text" />';
-        echo '<p class="description">Nome que aparecerá nos posts simulados</p>';
-    }
-    
-    public function description_callback() {
-        $settings = get_option('urlshortener_settings');
-        echo '<textarea id="description" name="urlshortener_settings[description]" rows="3" class="large-text">' . esc_textarea($settings['description']) . '</textarea>';
-        echo '<p class="description">Descrição do seu AdSite</p>';
-    }
+    // Removed manual input fields - using WordPress info automatically
     
     public function validate_settings($input) {
         $validated = array();
         
         $validated['api_url'] = esc_url_raw($input['api_url']);
         $validated['api_token'] = sanitize_text_field($input['api_token']);
-        $validated['adsite_name'] = sanitize_text_field($input['adsite_name']);
-        $validated['description'] = sanitize_textarea_field($input['description']);
+        // Using WordPress info automatically
+        $validated['adsite_name'] = get_bloginfo('name');
+        $validated['description'] = get_bloginfo('description');
         
         // Manter outros valores
         $current_settings = get_option('urlshortener_settings');
@@ -261,9 +245,9 @@ class URLShortener_Admin {
                 $settings['api_token'] = $api_token;
             }
             
-            // Salvar dados do usuário se disponíveis
-            if (isset($result['user_data'])) {
-                $settings['connected_user'] = $result['user_data'];
+            // Salvar dados do AdSite se disponíveis
+            if (isset($result['adsite_data'])) {
+                $settings['connected_adsite'] = $result['adsite_data'];
             }
         }
         
@@ -272,27 +256,6 @@ class URLShortener_Admin {
         wp_send_json($result);
     }
     
-    public function register_adsite() {
-        check_ajax_referer('urlshortener_admin_nonce', 'nonce');
-        
-        if (!current_user_can('manage_options')) {
-            wp_die();
-        }
-        
-        $settings = get_option('urlshortener_settings');
-        
-        $adsite_data = array(
-            'name' => $settings['adsite_name'] ?: get_bloginfo('name'),
-            'url' => home_url(),
-            'description' => $settings['description'] ?: get_bloginfo('description'),
-            'status' => 'active',
-            'wordpress_site' => true
-        );
-        
-        $api = URLShortener_API::get_instance();
-        $result = $api->register_adsite($adsite_data);
-        
-        wp_send_json($result);
-    }
+    // Removed register_adsite method - using existing AdSite token
     
 }

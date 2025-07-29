@@ -63,9 +63,39 @@ const authenticateApiToken = async (req, res, next) => {
   }
 };
 
+const authenticateAdsiteToken = async (req, res, next) => {
+  const apiToken = req.headers['authorization']?.replace('Bearer ', '') || req.headers['x-api-token'];
+  
+  if (!apiToken) {
+    return res.status(401).json({ error: 'AdSite API token required' });
+  }
+
+  try {
+    const adsite = await database.get(
+      'SELECT id, name, url, status FROM adsites WHERE api_token = $1',
+      [apiToken]
+    );
+    
+    if (!adsite) {
+      return res.status(401).json({ error: 'Invalid AdSite API token' });
+    }
+    
+    if (adsite.status !== 'active') {
+      return res.status(403).json({ error: 'AdSite is not active' });
+    }
+    
+    req.adsite = adsite;
+    next();
+  } catch (err) {
+    console.error('🚨 AdSite Token auth error:', err);
+    return res.status(500).json({ error: 'Database error', details: err.message });
+  }
+};
+
 module.exports = {
   authenticateToken,
   requireAdmin,
   requireClient,
-  authenticateApiToken
+  authenticateApiToken,
+  authenticateAdsiteToken
 };

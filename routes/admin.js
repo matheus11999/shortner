@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const database = require('../config/database');
-const { authenticateToken, requireAdmin, authenticateApiToken } = require('../middleware/auth');
+const { authenticateToken, requireAdmin, authenticateApiToken, authenticateAdsiteToken } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -395,8 +395,26 @@ router.delete('/client-sites/:id', authenticateToken, requireAdmin, async (req, 
   }
 });
 
-// WordPress Plugin specific routes using API Token authentication
-router.post('/wordpress/adsites', authenticateApiToken, requireAdmin, async (req, res) => {
+// WordPress Plugin specific routes using AdSite Token authentication
+router.get('/wordpress/adsite/validate-token', authenticateAdsiteToken, async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      message: 'Token válido',
+      adsite: {
+        id: req.adsite.id,
+        name: req.adsite.name,
+        url: req.adsite.url,
+        status: req.adsite.status
+      }
+    });
+  } catch (err) {
+    console.error('🚨 Validate token error:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
+  }
+});
+
+router.post('/wordpress/adsites', authenticateAdsiteToken, async (req, res) => {
   const { name, url, forcedClick, timerDuration, wpApiUrl, wpToken } = req.body;
 
   if (!name || !url) {
@@ -431,7 +449,7 @@ router.post('/wordpress/adsites', authenticateApiToken, requireAdmin, async (req
   }
 });
 
-router.get('/wordpress/banner-configs/:adsiteId', authenticateApiToken, async (req, res) => {
+router.get('/wordpress/banner-configs/:adsiteId', authenticateAdsiteToken, async (req, res) => {
   const { adsiteId } = req.params;
 
   try {
@@ -446,7 +464,7 @@ router.get('/wordpress/banner-configs/:adsiteId', authenticateApiToken, async (r
   }
 });
 
-router.post('/wordpress/sync-post', authenticateApiToken, async (req, res) => {
+router.post('/wordpress/sync-post', authenticateAdsiteToken, async (req, res) => {
   const postData = req.body;
   
   console.log('📝 WordPress post sync received:', postData.title);

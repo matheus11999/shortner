@@ -54,8 +54,8 @@ class URLShortener_API {
         // Normalizar URL para evitar duplicação de /api
         $normalized_url = $this->normalize_url($url);
         
-        // Testar endpoint de autenticação específico para WordPress Plugin
-        $response = wp_remote_get($normalized_url . '/api/auth/me-api', array(
+        // Testar endpoint de validação de token específico para AdSite
+        $response = wp_remote_get($normalized_url . '/api/admin/wordpress/adsite/validate-token', array(
             'headers' => array(
                 'Authorization' => 'Bearer ' . $token,
                 'X-API-Token' => $token,
@@ -76,22 +76,22 @@ class URLShortener_API {
         
         if ($status_code === 200) {
             $data = json_decode($body, true);
-            if ($data && isset($data['role']) && $data['role'] === 'admin') {
+            if ($data && isset($data['success']) && $data['success'] === true) {
                 return array(
                     'success' => true,
-                    'message' => 'Conexão estabelecida com sucesso! Usuário: ' . $data['name'],
-                    'user_data' => $data
+                    'message' => 'Conexão estabelecida com sucesso! AdSite: ' . $data['adsite']['name'],
+                    'adsite_data' => $data['adsite']
                 );
             } else {
                 return array(
                     'success' => false,
-                    'message' => 'Token válido mas usuário não é administrador'
+                    'message' => 'Resposta inválida do servidor'
                 );
             }
         } else if ($status_code === 401) {
             return array(
                 'success' => false,
-                'message' => 'Token de autenticação inválido'
+                'message' => 'Token do AdSite inválido'
             );
         } else {
             return array(
