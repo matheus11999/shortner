@@ -802,4 +802,133 @@ function generateAdContent(ad) {
   }
 }
 
+// Endpoint de teste específico para AdSites
+router.get('/test-adsite/:adsiteId', async (req, res) => {
+  const { adsiteId } = req.params;
+  const { target } = req.query;
+
+  if (!adsiteId || !target) {
+    return res.status(400).send('Parâmetros inválidos - AdSite ID e target são obrigatórios');
+  }
+
+  try {
+    // Decodificar URL de destino
+    let targetUrl;
+    try {
+      targetUrl = decodeURIComponent(Buffer.from(target, 'base64').toString());
+    } catch (error) {
+      targetUrl = target; // Fallback se não estiver encodado
+    }
+
+    // Buscar o AdSite
+    const adsite = await database.get('SELECT * FROM adsites WHERE id = $1', [adsiteId]);
+    
+    if (!adsite) {
+      return res.status(404).send(`AdSite com ID ${adsiteId} não encontrado`);
+    }
+
+    if (adsite.status !== 'active') {
+      return res.status(400).send(`AdSite ${adsite.name} não está ativo`);
+    }
+
+    // Criar um post simulado
+    const fakePost = await generateFakePost(adsite);
+
+    // Criar um objeto short_url fake para o teste
+    const fakeShortUrl = {
+      id: 999999, // ID de teste
+      original_url: targetUrl,
+      short_code: 'test_' + adsiteId,
+      site_id: null
+    };
+
+    const step1Banners = await getBannerConfigs(adsite.id, 1);
+    const step2Banners = await getBannerConfigs(adsite.id, 2);
+    const step1Ads = await getAdvertisements(adsite.id, 1);
+    const step2Ads = await getAdvertisements(adsite.id, 2);
+
+    // Verificar se há banners configurados
+    if (step1Banners.length === 0 && step2Banners.length === 0) {
+      return res.send(`
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>⚠️ Configuração Necessária</title>
+            <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+        </head>
+        <body class="bg-gray-100 min-h-screen flex items-center justify-center">
+            <div class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-6 text-center">
+                <div class="text-6xl mb-4">⚠️</div>
+                <h1 class="text-2xl font-bold text-gray-800 mb-4">Configuração Necessária</h1>
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                    <p class="text-sm text-gray-700">
+                        <strong>AdSite encontrado:</strong> ${adsite.name}<br>
+                        <strong>Status:</strong> ${adsite.status}<br>
+                        <strong>Problema:</strong> Nenhum banner configurado
+                    </p>
+                </div>
+                <div class="text-left bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                    <p class="text-sm text-gray-700 mb-2"><strong>Para configurar banners:</strong></p>
+                    <ol class="text-xs text-gray-600 list-decimal list-inside space-y-1">
+                        <li>Acesse o painel administrativo</li>
+                        <li>Vá para "Advertisements" → "Banner Configs"</li>
+                        <li>Selecione o AdSite "${adsite.name}"</li>
+                        <li>Configure pelo menos 1 banner para Step 1 e Step 2</li>
+                        <li>Salve e teste novamente</li>
+                    </ol>
+                </div>
+                <a href="javascript:history.back()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                    ← Voltar
+                </a>
+            </div>
+        </body>
+        </html>
+      `);
+    }
+
+    const redirectPage = generateRedirectPage({
+      wpPost: fakePost,
+      shortUrl: fakeShortUrl,
+      adsite: adsite,
+      step1Banners,
+      step2Banners,
+      step1Ads,
+      step2Ads
+    });
+
+    res.send(redirectPage);
+    
+  } catch (error) {
+    console.error('Test AdSite error:', error);
+    res.status(500).send(`
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+      <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>❌ Erro no Teste</title>
+          <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+      </head>
+      <body class="bg-gray-100 min-h-screen flex items-center justify-center">
+          <div class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-6 text-center">
+              <div class="text-6xl mb-4">❌</div>
+              <h1 class="text-2xl font-bold text-gray-800 mb-4">Erro no Teste</h1>
+              <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                  <p class="text-sm text-gray-700">
+                      <strong>Erro:</strong> ${error.message}<br>
+                      <strong>AdSite ID:</strong> ${adsiteId}
+                  </p>
+              </div>
+              <a href="javascript:history.back()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+                  ← Voltar
+              </a>
+          </div>
+      </body>
+      </html>
+    `);
+  }
+});
+
 module.exports = router;

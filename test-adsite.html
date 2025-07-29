@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de AdSite - URL Shortener</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .test-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 16px;
+            padding: 24px;
+            color: white;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+        }
+        
+        .step-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 16px 0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-left: 4px solid #3b82f6;
+        }
+        
+        .url-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 14px;
+            background: #f9fafb;
+        }
+        
+        .test-button {
+            background: linear-gradient(45deg, #10b981, #059669);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: bold;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .test-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 15px rgba(16, 185, 129, 0.3);
+        }
+        
+        .warning {
+            background: #fef3cd;
+            border: 1px solid #fbbf24;
+            color: #92400e;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 16px 0;
+        }
+        
+        .success {
+            background: #d1fae5;
+            border: 1px solid #10b981;
+            color: #065f46;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 16px 0;
+        }
+
+        .info {
+            background: #dbeafe;
+            border: 1px solid #3b82f6;
+            color: #1e40af;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 16px 0;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <div class="test-card text-center">
+            <h1 class="text-3xl font-bold mb-4">🧪 Teste de AdSite</h1>
+            <p class="text-lg opacity-90">Ferramenta para testar anúncios e funcionalidade dos AdSites</p>
+        </div>
+
+        <!-- Método 1: Teste via Magnet Link -->
+        <div class="step-card">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">📋 Método 1: Teste via Magnet Link</h2>
+            
+            <div class="info">
+                <strong>🎯 Como funciona:</strong> Este método simula um usuário clicando em um magnet link interceptado por JavaScript
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">URL de teste gerada:</label>
+                <input type="text" readonly class="url-input" id="magnetTestUrl" value="Gerando URL...">
+            </div>
+
+            <div class="mb-4">
+                <button onclick="generateMagnetTest()" class="test-button">
+                    🔗 Gerar URL de Teste
+                </button>
+                <button onclick="copyMagnetUrl()" class="test-button ml-2" style="background: linear-gradient(45deg, #6366f1, #4f46e5);">
+                    📋 Copiar URL
+                </button>
+            </div>
+
+            <div class="warning">
+                <strong>⚠️ Pré-requisito:</strong> 
+                <ul class="mt-2 ml-4">
+                    <li>• Você precisa ter um AdSite criado com banner configs</li>
+                    <li>• O AdSite deve estar ativo no sistema</li>
+                    <li>• Configure pelo menos 1 banner para Step 1 e Step 2</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Método 2: Teste Direto -->
+        <div class="step-card">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">🚀 Método 2: Teste Direto com AdSite ID</h2>
+            
+            <div class="info">
+                <strong>🎯 Como funciona:</strong> Teste direto fornecendo o ID do AdSite e URL de destino
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">ID do AdSite:</label>
+                    <input type="number" id="adsiteId" placeholder="ex: 2" class="url-input" min="1">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">URL de destino:</label>
+                    <input type="url" id="targetUrl" placeholder="https://example.com" class="url-input">
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">URL de teste direto:</label>
+                <input type="text" readonly class="url-input" id="directTestUrl" value="Configure os campos acima">
+            </div>
+
+            <div class="mb-4">
+                <button onclick="generateDirectTest()" class="test-button">
+                    ⚡ Gerar Teste Direto
+                </button>
+                <button onclick="copyDirectUrl()" class="test-button ml-2" style="background: linear-gradient(45deg, #6366f1, #4f46e5);">
+                    📋 Copiar URL
+                </button>
+            </div>
+        </div>
+
+        <!-- Instruções -->
+        <div class="step-card">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">📋 Como Configurar Banner Configs</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="font-bold text-gray-800 mb-2">📊 No Painel Administrativo:</h3>
+                    <ol class="list-decimal list-inside text-sm text-gray-600 space-y-1">
+                        <li>Acesse "AdSites" → "Gerenciar AdSites"</li>
+                        <li>Encontre seu AdSite na lista</li>
+                        <li>Vá para "Advertisements" → "Banner Configs"</li>
+                        <li>Configure banners para Step 1 e Step 2</li>
+                        <li>Salve as configurações</li>
+                    </ol>
+                </div>
+                
+                <div>
+                    <h3 class="font-bold text-gray-800 mb-2">🎯 Tipos de Banner:</h3>
+                    <ul class="list-disc list-inside text-sm text-gray-600 space-y-1">
+                        <li><strong>300x250:</strong> Banner médio (3 posições)</li>
+                        <li><strong>728x90:</strong> Banner grande (2 posições)</li>
+                        <li><strong>300x600:</strong> Banner vertical (1 posição)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="success mt-4">
+                <strong>✅ Dica:</strong> Você pode usar HTML simples nos banners, como: 
+                <code>&lt;div style="background: #3b82f6; color: white; padding: 20px; text-align: center; border-radius: 8px;"&gt;Seu Anúncio Aqui&lt;/div&gt;</code>
+            </div>
+        </div>
+
+        <!-- Status do Sistema -->
+        <div class="step-card">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">🔍 Verificar Status do Sistema</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <button onclick="checkApiStatus()" class="test-button">
+                    🌐 Status da API
+                </button>
+                <button onclick="checkAdsites()" class="test-button">
+                    📊 Listar AdSites
+                </button>
+                <button onclick="checkBannerConfigs()" class="test-button">
+                    🎯 Verificar Banners
+                </button>
+            </div>
+
+            <div id="statusResult" class="mt-4"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://evoapi-backend-url.ttvjwi.easypanel.host';
+
+        function generateMagnetTest() {
+            // Gerar um magnet link de exemplo
+            const exampleMagnet = 'magnet:?xt=urn:btih:test1234567890abcdef&dn=Test+File&tr=udp://tracker.example.com:8080';
+            const encodedMagnet = btoa(encodeURIComponent(exampleMagnet));
+            const testCode = 'test-' + Math.random().toString(36).substring(2, 8);
+            
+            const testUrl = `${API_BASE}/magnet?code=${testCode}&m=${encodedMagnet}`;
+            document.getElementById('magnetTestUrl').value = testUrl;
+            
+            showMessage('success', '✅ URL de teste gerada! Abra esta URL em uma nova aba para testar.');
+        }
+
+        function generateDirectTest() {
+            const adsiteId = document.getElementById('adsiteId').value;
+            const targetUrl = document.getElementById('targetUrl').value;
+            
+            if (!adsiteId || !targetUrl) {
+                showMessage('warning', '⚠️ Preencha o ID do AdSite e a URL de destino.');
+                return;
+            }
+            
+            // Criar URL de teste direto
+            const encodedTarget = btoa(encodeURIComponent(targetUrl));
+            const testUrl = `${API_BASE}/test-adsite/${adsiteId}?target=${encodedTarget}`;
+            document.getElementById('directTestUrl').value = testUrl;
+            
+            showMessage('success', '✅ URL de teste direto gerada!');
+        }
+
+        function copyMagnetUrl() {
+            const url = document.getElementById('magnetTestUrl').value;
+            if (url && url !== 'Gerando URL...') {
+                navigator.clipboard.writeText(url);
+                showMessage('success', '📋 URL copiada para a área de transferência!');
+            }
+        }
+
+        function copyDirectUrl() {
+            const url = document.getElementById('directTestUrl').value;
+            if (url && url !== 'Configure os campos acima') {
+                navigator.clipboard.writeText(url);
+                showMessage('success', '📋 URL copiada para a área de transferência!');
+            }
+        }
+
+        async function checkApiStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: 'test', password: 'test' })
+                });
+                
+                const statusDiv = document.getElementById('statusResult');
+                if (response.status === 400 || response.status === 401) {
+                    statusDiv.innerHTML = '<div class="success"><strong>✅ API Online:</strong> Servidor respondendo corretamente</div>';
+                } else {
+                    statusDiv.innerHTML = '<div class="warning"><strong>⚠️ API Status:</strong> Resposta inesperada</div>';
+                }
+            } catch (error) {
+                document.getElementById('statusResult').innerHTML = '<div class="warning"><strong>❌ API Offline:</strong> Erro de conexão</div>';
+            }
+        }
+
+        async function checkAdsites() {
+            try {
+                // Tentar login primeiro
+                const loginResponse = await fetch(`${API_BASE}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: 'admin@urlshortener.com', password: 'admin123' })
+                });
+                
+                if (loginResponse.ok) {
+                    const loginData = await loginResponse.json();
+                    
+                    const adsitesResponse = await fetch(`${API_BASE}/api/admin/adsites`, {
+                        headers: { 'Authorization': `Bearer ${loginData.token}` }
+                    });
+                    
+                    if (adsitesResponse.ok) {
+                        const adsites = await adsitesResponse.json();
+                        let html = '<div class="success"><strong>📊 AdSites Encontrados:</strong><ul class="mt-2">';
+                        adsites.forEach(adsite => {
+                            html += `<li>• ID: ${adsite.id} - ${adsite.name} (${adsite.status})</li>`;
+                        });
+                        html += '</ul></div>';
+                        document.getElementById('statusResult').innerHTML = html;
+                    } else {
+                        document.getElementById('statusResult').innerHTML = '<div class="warning"><strong>⚠️ Erro:</strong> Não foi possível listar AdSites</div>';
+                    }
+                } else {
+                    document.getElementById('statusResult').innerHTML = '<div class="warning"><strong>⚠️ Erro:</strong> Falha no login</div>';
+                }
+            } catch (error) {
+                document.getElementById('statusResult').innerHTML = '<div class="warning"><strong>❌ Erro:</strong> ' + error.message + '</div>';
+            }
+        }
+
+        async function checkBannerConfigs() {
+            const adsiteId = document.getElementById('adsiteId').value || '2'; // Default para ID 2
+            
+            try {
+                const loginResponse = await fetch(`${API_BASE}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: 'admin@urlshortener.com', password: 'admin123' })
+                });
+                
+                if (loginResponse.ok) {
+                    const loginData = await loginResponse.json();
+                    
+                    const bannerResponse = await fetch(`${API_BASE}/api/admin/banner-configs/${adsiteId}`, {
+                        headers: { 'Authorization': `Bearer ${loginData.token}` }
+                    });
+                    
+                    if (bannerResponse.ok) {
+                        const banners = await bannerResponse.json();
+                        let html = `<div class="info"><strong>🎯 Banner Configs para AdSite ${adsiteId}:</strong>`;
+                        if (banners.length === 0) {
+                            html += '<p class="mt-2 text-red-600">❌ Nenhum banner configurado! Configure banners no painel administrativo.</p>';
+                        } else {
+                            html += '<ul class="mt-2">';
+                            banners.forEach(banner => {
+                                html += `<li>• Step ${banner.step} - ${banner.banner_type} #${banner.position} (${banner.active ? 'Ativo' : 'Inativo'})</li>`;
+                            });
+                            html += '</ul>';
+                        }
+                        html += '</div>';
+                        document.getElementById('statusResult').innerHTML = html;
+                    } else {
+                        document.getElementById('statusResult').innerHTML = '<div class="warning"><strong>⚠️ Erro:</strong> Não foi possível verificar banner configs</div>';
+                    }
+                } else {
+                    document.getElementById('statusResult').innerHTML = '<div class="warning"><strong>⚠️ Erro:</strong> Falha no login</div>';
+                }
+            } catch (error) {
+                document.getElementById('statusResult').innerHTML = '<div class="warning"><strong>❌ Erro:</strong> ' + error.message + '</div>';
+            }
+        }
+
+        function showMessage(type, message) {
+            const div = document.createElement('div');
+            div.className = type;
+            div.innerHTML = message;
+            div.style.position = 'fixed';
+            div.style.top = '20px';
+            div.style.right = '20px';
+            div.style.zIndex = '9999';
+            div.style.maxWidth = '400px';
+            document.body.appendChild(div);
+            
+            setTimeout(() => {
+                document.body.removeChild(div);
+            }, 5000);
+        }
+
+        // Auto-update direct test URL when inputs change
+        document.getElementById('adsiteId').addEventListener('input', updateDirectTestUrl);
+        document.getElementById('targetUrl').addEventListener('input', updateDirectTestUrl);
+
+        function updateDirectTestUrl() {
+            const adsiteId = document.getElementById('adsiteId').value;
+            const targetUrl = document.getElementById('targetUrl').value;
+            
+            if (adsiteId && targetUrl) {
+                const encodedTarget = btoa(encodeURIComponent(targetUrl));
+                const testUrl = `${API_BASE}/test-adsite/${adsiteId}?target=${encodedTarget}`;
+                document.getElementById('directTestUrl').value = testUrl;
+            } else {
+                document.getElementById('directTestUrl').value = 'Configure os campos acima';
+            }
+        }
+    </script>
+</body>
+</html>
