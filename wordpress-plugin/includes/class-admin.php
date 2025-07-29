@@ -20,6 +20,8 @@ class URLShortener_Admin {
         add_action('admin_init', array($this, 'init_settings'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
         add_action('wp_ajax_urlshortener_test_connection', array($this, 'test_connection'));
+        add_action('wp_ajax_urlshortener_test_adsite', array($this, 'test_adsite'));
+        add_action('wp_ajax_urlshortener_check_updates', array($this, 'check_updates'));
         // Removed register_adsite functionality - using existing AdSite token"
     }
     
@@ -125,6 +127,12 @@ class URLShortener_Admin {
                     <button type="button" id="refresh-status" class="button button-secondary">
                         <span class="dashicons dashicons-admin-generic"></span> Atualizar Status
                     </button>
+                    
+                    <?php if ($settings['connection_status'] === 'connected'): ?>
+                        <button type="button" id="test-adsite" class="button button-primary">
+                            <span class="dashicons dashicons-visibility"></span> Testar AdSite
+                        </button>
+                    <?php endif; ?>
                 </div>
                 
                 <?php if (isset($settings['last_connection_test'])): ?>
@@ -139,7 +147,10 @@ class URLShortener_Admin {
                             <li>📊 Visualizar banner configs no painel administrativo</li>
                             <li>🎯 Configurar anúncios específicos para este AdSite</li>
                             <li>📈 Acompanhar métricas de conversão</li>
+                            <li>🧪 Testar o sistema de anúncios</li>
                         </ul>
+                        
+                        <div id="test-result" style="margin-top: 15px; display: none;"></div>
                     </div>
                 <?php else: ?>
                     <div class="notice notice-warning inline">
@@ -164,15 +175,22 @@ class URLShortener_Admin {
             </form>
             
             <div class="urlshortener-info-card">
-                <h3>Sistema de Posts Simulados</h3>
-                <p>O sistema URL Shortener agora gera automaticamente posts simulados para exibição de anúncios, baseados no nome e configurações do seu AdSite.</p>
-                <p><strong>Vantagens:</strong></p>
+                <h3>Sistema de Atualizações Automáticas</h3>
+                <p>O plugin é atualizado automaticamente quando novas versões estão disponíveis.</p>
+                <p><strong>Versão atual:</strong> <?php echo URLSHORTENER_VERSION; ?></p>
+                <p><strong>Recursos:</strong></p>
                 <ul>
-                    <li>✅ Não consome recursos do WordPress</li>
-                    <li>✅ Posts otimizados para conversão</li>
-                    <li>✅ Conteúdo sempre atualizado</li>
-                    <li>✅ Sem necessidade de sincronização</li>
+                    <li>✅ Atualizações automáticas via WordPress</li>
+                    <li>✅ Posts simulados otimizados</li>
+                    <li>✅ Sistema de teste integrado</li>
+                    <li>✅ Status de conexão em tempo real</li>
                 </ul>
+                
+                <div style="margin-top: 15px;">
+                    <button type="button" id="check-updates" class="button button-secondary">
+                        <span class="dashicons dashicons-update"></span> Verificar Atualizações
+                    </button>
+                </div>
             </div>
         </div>
         <?php
@@ -256,6 +274,52 @@ class URLShortener_Admin {
         wp_send_json($result);
     }
     
-    // Removed register_adsite method - using existing AdSite token
+    public function test_adsite() {
+        check_ajax_referer('urlshortener_admin_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_die();
+        }
+        
+        $settings = get_option('urlshortener_settings');
+        
+        if ($settings['connection_status'] !== 'connected' || !isset($settings['connected_adsite'])) {
+            wp_send_json_error('AdSite não conectado');
+            return;
+        }
+        
+        $adsite = $settings['connected_adsite'];
+        $test_url = home_url();
+        
+        // Criar URL de teste
+        $api_url = rtrim($settings['api_url'], '/');
+        if (substr($api_url, -4) === '/api') {
+            $api_url = substr($api_url, 0, -4);
+        }
+        
+        $encoded_target = base64_encode($test_url);
+        $test_adsite_url = $api_url . '/test-adsite/' . $adsite['id'] . '?target=' . $encoded_target;
+        
+        wp_send_json_success(array(
+            'test_url' => $test_adsite_url,
+            'adsite_name' => $adsite['name'],
+            'adsite_id' => $adsite['id']
+        ));
+    }
+    
+    public function check_updates() {
+        check_ajax_referer('urlshortener_admin_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_die();
+        }
+        
+        if (class_exists('URLShortener_Updater')) {
+            $result = URLShortener_Updater::manual_check_update();
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error('Sistema de atualização não disponível');
+        }
+    }
     
 }

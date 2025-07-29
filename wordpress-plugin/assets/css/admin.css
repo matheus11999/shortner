@@ -184,6 +184,62 @@
     100% { transform: rotate(360deg); }
 }
 
+/* Spin animation for dashicons */
+.dashicons.spin {
+    animation: spin 1s linear infinite;
+}
+
+/* Test AdSite button styling */
+#test-adsite {
+    background: #28a745;
+    border-color: #28a745;
+    color: white;
+    margin-left: 10px;
+}
+
+#test-adsite:hover {
+    background: #218838;
+    border-color: #1e7e34;
+}
+
+#test-adsite:disabled {
+    background: #6c757d;
+    border-color: #6c757d;
+}
+
+/* Test result styling */
+#test-result {
+    margin-top: 15px;
+}
+
+#test-result .notice {
+    margin: 0;
+}
+
+#test-result .button {
+    margin-top: 10px;
+}
+
+/* Update check styling */
+#check-updates {
+    background: #17a2b8;
+    border-color: #17a2b8;
+    color: white;
+}
+
+#check-updates:hover {
+    background: #138496;
+    border-color: #117a8b;
+}
+
+/* Auto-refresh indicator */
+.connection-status.connected::after {
+    content: " (auto-refresh ativo)";
+    font-size: 11px;
+    font-weight: normal;
+    opacity: 0.7;
+}
+
 .notice.inline {
     margin: 10px 0;
     padding: 8px 12px;

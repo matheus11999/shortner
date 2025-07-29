@@ -1,5 +1,12 @@
 jQuery(document).ready(function($) {
     
+    // Auto-refresh status every 30 seconds if connected
+    setInterval(function() {
+        if ($('#connection-status').hasClass('connected')) {
+            refreshStatus(true); // Silent refresh
+        }
+    }, 30000);
+    
     // Testar conexão
     $('#test-connection').on('click', function() {
         var button = $(this);
@@ -29,22 +36,23 @@ jQuery(document).ready(function($) {
                 var statusDiv = $('#connection-status');
                 
                 if (response.success) {
-                    var userInfo = response.user_data ? 
-                        '<br><small>Usuário: ' + response.user_data.name + ' (' + response.user_data.email + ')</small>' : '';
+                    var adsiteInfo = response.adsite_data ? 
+                        '<br><small>AdSite: ' + response.adsite_data.name + ' (' + response.adsite_data.url + ')</small>' : '';
                     
                     statusDiv.removeClass('disconnected').addClass('connected')
-                        .html('<span class="dashicons dashicons-yes-alt"></span> <strong>Conectado</strong>' + userInfo);
+                        .html('<span class="dashicons dashicons-yes-alt"></span> <strong>Conectado</strong>' + adsiteInfo);
                     
                     showNotice('✅ ' + response.message, 'success');
                     
-                    // Mostrar seção de sincronização se conectado
-                    $('.sync-section').show();
+                    // Show test button
+                    $('#test-adsite').show();
+                    
                 } else {
                     statusDiv.removeClass('connected').addClass('disconnected')
                         .html('<span class="dashicons dashicons-dismiss"></span> <strong>Desconectado</strong><br><small>Configure a URL da API e Token para conectar</small>');
                     
                     showNotice('❌ ' + response.message, 'error');
-                    $('.sync-section').hide();
+                    $('#test-adsite').hide();
                 }
             },
             error: function(xhr, status, error) {
@@ -58,65 +66,163 @@ jQuery(document).ready(function($) {
     
     // Atualizar status
     $('#refresh-status').on('click', function() {
-        var button = $(this);
-        var originalHtml = button.html();
-        
-        button.html('<span class="urlshortener-loading"></span> Atualizando...').prop('disabled', true);
-        
-        // Simular refresh do status usando o test connection atual
-        $('#test-connection').trigger('click');
-        
-        setTimeout(function() {
-            button.html(originalHtml).prop('disabled', false);
-        }, 2000);
+        refreshStatus(false);
     });
     
-    // Registrar AdSite
-    $('#register-adsite').on('click', function() {
+    // Test AdSite
+    $('#test-adsite').on('click', function() {
         var button = $(this);
-        var originalText = button.text();
+        var originalText = button.html();
         
-        button.text('Registrando...').prop('disabled', true);
-        
-        var statusDiv = $('#register-status');
-        statusDiv.html('<p>Registrando AdSite no sistema...</p>');
+        button.html('<span class="dashicons dashicons-update-alt spin"></span> Testando...').prop('disabled', true);
         
         $.ajax({
             url: urlshortener_admin_ajax.ajax_url,
             type: 'POST',
             data: {
-                action: 'urlshortener_register_adsite',
+                action: 'urlshortener_test_adsite',
                 nonce: urlshortener_admin_ajax.nonce
             },
             success: function(response) {
                 if (response.success) {
-                    statusDiv.html('<p class="success">✓ AdSite registrado com sucesso!</p>');
-                    showNotice('AdSite registrado e pronto para exibir anúncios!', 'success');
+                    var data = response.data;
+                    var testResult = $('#test-result');
                     
-                    // Salvar configurações após o registro
-                    setTimeout(function() {
-                        $('form').submit();
-                    }, 2000);
+                    testResult.html(
+                        '<div class="notice notice-info inline">' +
+                        '<p><strong>🧪 Teste do AdSite "' + data.adsite_name + '"</strong></p>' +
+                        '<p>URL de teste gerada! Clique no botão abaixo para abrir em uma nova aba:</p>' +
+                        '<p>' +
+                        '<a href="' + data.test_url + '" target="_blank" class="button button-primary">' +
+                        '<span class="dashicons dashicons-external"></span> Abrir Teste do AdSite' +
+                        '</a>' +
+                        '</p>' +
+                        '<p><small><strong>URL:</strong> ' + data.test_url + '</small></p>' +
+                        '</div>'
+                    ).show();
+                    
+                    showNotice('URL de teste gerada com sucesso!', 'success');
                 } else {
-                    statusDiv.html('<p class="error">✗ ' + response.message + '</p>');
-                    showNotice('Erro ao registrar AdSite: ' + response.message, 'error');
+                    showNotice('Erro ao gerar teste: ' + (response.data || 'Erro desconhecido'), 'error');
                 }
             },
             error: function() {
-                statusDiv.html('<p class="error">✗ Erro ao registrar AdSite</p>');
-                showNotice('Erro ao registrar AdSite. Verifique sua conexão.', 'error');
+                showNotice('Erro de conexão ao gerar teste', 'error');
             },
             complete: function() {
-                button.text(originalText).prop('disabled', false);
+                button.html(originalText).prop('disabled', false);
             }
         });
     });
+    
+    // Check updates
+    $('#check-updates').on('click', function() {
+        var button = $(this);
+        var originalText = button.html();
+        
+        button.html('<span class="dashicons dashicons-update-alt spin"></span> Verificando...').prop('disabled', true);
+        
+        $.ajax({
+            url: urlshortener_admin_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'urlshortener_check_updates',
+                nonce: urlshortener_admin_ajax.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    showNotice(response.data.message, 'success');
+                    // Trigger WordPress update check
+                    setTimeout(function() {
+                        if (confirm('Verificação concluída. Recarregar a página para ver atualizações disponíveis?')) {
+                            location.reload();
+                        }
+                    }, 2000);
+                } else {
+                    showNotice('Erro na verificação: ' + (response.data || 'Erro desconhecido'), 'error');
+                }
+            },
+            error: function() {
+                showNotice('Erro de conexão', 'error');
+            },
+            complete: function() {
+                button.html(originalText).prop('disabled', false);
+            }
+        });
+    });
+    
+    // Function to refresh status
+    function refreshStatus(silent) {
+        var button = $('#refresh-status');
+        var originalHtml = button.html();
+        
+        if (!silent) {
+            button.html('<span class="urlshortener-loading"></span> Atualizando...').prop('disabled', true);
+        }
+        
+        var apiUrl = $('#api_url').val();
+        var apiToken = $('#api_token').val();
+        
+        if (!apiUrl || !apiToken) {
+            if (!silent) {
+                button.html(originalHtml).prop('disabled', false);
+            }
+            return;
+        }
+        
+        $.ajax({
+            url: urlshortener_admin_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'urlshortener_test_connection',
+                nonce: urlshortener_admin_ajax.nonce,
+                api_url: apiUrl,
+                api_token: apiToken
+            },
+            success: function(response) {
+                var statusDiv = $('#connection-status');
+                
+                if (response.success) {
+                    var adsiteInfo = response.adsite_data ? 
+                        '<br><small>AdSite: ' + response.adsite_data.name + ' (' + response.adsite_data.url + ')</small>' : '';
+                    
+                    statusDiv.removeClass('disconnected').addClass('connected')
+                        .html('<span class="dashicons dashicons-yes-alt"></span> <strong>Conectado</strong>' + adsiteInfo);
+                    
+                    if (!silent) {
+                        showNotice('Status atualizado: ' + response.message, 'success');
+                    }
+                    
+                    // Show test button
+                    $('#test-adsite').show();
+                    
+                } else {
+                    statusDiv.removeClass('connected').addClass('disconnected')
+                        .html('<span class="dashicons dashicons-dismiss"></span> <strong>Desconectado</strong><br><small>' + response.message + '</small>');
+                    
+                    if (!silent) {
+                        showNotice('Status: ' + response.message, 'warning');
+                    }
+                    $('#test-adsite').hide();
+                }
+            },
+            error: function(xhr, status, error) {
+                if (!silent) {
+                    showNotice('Erro ao atualizar status: ' + error, 'error');
+                }
+            },
+            complete: function() {
+                if (!silent) {
+                    button.html(originalHtml).prop('disabled', false);
+                }
+            }
+        });
+    }
     
     // Validação de formulário
     $('form').on('submit', function() {
         var apiUrl = $('#api_url').val();
         var apiToken = $('#api_token').val();
-        var adsiteName = $('#adsite_name').val();
         
         if (apiUrl && !isValidUrl(apiUrl)) {
             alert('Por favor, insira uma URL válida para a API.');
@@ -125,11 +231,6 @@ jQuery(document).ready(function($) {
         
         if (apiUrl && !apiToken) {
             alert('Token da API é obrigatório quando a URL é fornecida.');
-            return false;
-        }
-        
-        if (!adsiteName.trim()) {
-            alert('Nome do AdSite é obrigatório.');
             return false;
         }
         
@@ -155,7 +256,7 @@ jQuery(document).ready(function($) {
     
     // Funções auxiliares
     function showNotice(message, type) {
-        var noticeClass = type === 'success' ? 'notice-success' : 'notice-error';
+        var noticeClass = type === 'success' ? 'notice-success' : (type === 'warning' ? 'notice-warning' : 'notice-error');
         var notice = $('<div class="notice ' + noticeClass + ' is-dismissible"><p>' + message + '</p></div>');
         
         $('.wrap h1').after(notice);
@@ -211,6 +312,13 @@ jQuery(document).ready(function($) {
         if (formChanged) {
             return 'Você tem alterações não salvas. Deseja sair mesmo assim?';
         }
+    });
+    
+    // Initial status check on page load
+    $(document).ready(function() {
+        setTimeout(function() {
+            refreshStatus(true);
+        }, 1000);
     });
     
 });

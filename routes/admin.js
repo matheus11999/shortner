@@ -494,4 +494,77 @@ router.post('/wordpress/sync-post', authenticateAdsiteToken, async (req, res) =>
   }
 });
 
+// Plugin update endpoints
+router.get('/wordpress-plugin-version', authenticateAdsiteToken, async (req, res) => {
+  try {
+    res.json({
+      version: '1.1.0',
+      release_date: new Date().toISOString(),
+      minimum_wp_version: '5.0',
+      tested_wp_version: '6.4'
+    });
+  } catch (err) {
+    console.error('🚨 Plugin version error:', err);
+    res.status(500).json({ error: 'Version check failed', details: err.message });
+  }
+});
+
+router.get('/wordpress-plugin-changelog', authenticateAdsiteToken, async (req, res) => {
+  try {
+    const changelog = `
+= 1.1.0 =
+* Adicionado: Botão de teste integrado do AdSite
+* Adicionado: Sistema de auto-update automático
+* Melhorado: Status de conexão em tempo real (atualização a cada 30s)
+* Melhorado: Interface mais responsiva e informativa
+* Removido: Campos manuais de nome e descrição (usa dados do WordPress automaticamente)
+* Corrigido: Validação de token específica para AdSites
+* Corrigido: Endpoint de teste específico usando token do AdSite
+
+= 1.0.0 =
+* Versão inicial do plugin
+* Conexão com sistema URL Shortener
+* Configuração básica de AdSite
+    `;
+    
+    res.json({
+      changelog: changelog.trim()
+    });
+  } catch (err) {
+    console.error('🚨 Plugin changelog error:', err);
+    res.status(500).json({ error: 'Changelog failed', details: err.message });
+  }
+});
+
+router.get('/wordpress-plugin-download', authenticateAdsiteToken, async (req, res) => {
+  try {
+    const archiver = require('archiver');
+    const path = require('path');
+    const fs = require('fs');
+    
+    // Set response headers for zip download
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', 'attachment; filename="url-shortener-adsite.zip"');
+    
+    // Create archiver instance
+    const archive = archiver('zip', {
+      zlib: { level: 9 } // Maximum compression
+    });
+    
+    // Pipe archive data to response
+    archive.pipe(res);
+    
+    // Add the entire plugin directory
+    const pluginDir = path.join(__dirname, '../wordpress-plugin');
+    archive.directory(pluginDir, 'url-shortener-adsite');
+    
+    // Finalize the archive
+    await archive.finalize();
+    
+  } catch (err) {
+    console.error('🚨 Plugin download error:', err);
+    res.status(500).json({ error: 'Download failed', details: err.message });
+  }
+});
+
 module.exports = router;

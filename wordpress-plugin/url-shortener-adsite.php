@@ -3,7 +3,7 @@
  * Plugin Name: URL Shortener AdSite
  * Plugin URI: https://your-domain.com/
  * Description: Plugin para integração com sistema de URL shortener com anúncios
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: Your Name
  * License: GPL2
  */
@@ -16,11 +16,12 @@ if (!defined('ABSPATH')) {
 // Definir constantes
 define('URLSHORTENER_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('URLSHORTENER_PLUGIN_URL', plugin_dir_url(__FILE__));
-define('URLSHORTENER_VERSION', '1.0.0');
+define('URLSHORTENER_VERSION', '1.1.0');
 
 // Incluir arquivos necessários
 require_once URLSHORTENER_PLUGIN_PATH . 'includes/class-admin.php';
 require_once URLSHORTENER_PLUGIN_PATH . 'includes/class-api.php';
+require_once URLSHORTENER_PLUGIN_PATH . 'includes/class-updater.php';
 // Post sync removido - sistema agora usa posts simulados
 
 class URLShortenerAdSite {
@@ -38,6 +39,11 @@ class URLShortenerAdSite {
         add_action('init', array($this, 'init'));
         register_activation_hook(__FILE__, array($this, 'activate'));
         register_deactivation_hook(__FILE__, array($this, 'deactivate'));
+        
+        // Initialize updater
+        if (is_admin()) {
+            new URLShortener_Updater(__FILE__, URLSHORTENER_VERSION);
+        }
     }
     
     public function init() {
