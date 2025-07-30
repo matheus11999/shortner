@@ -1762,21 +1762,46 @@ class URLShortener_Frontend {
     
     // Intercept posts to show ads when session exists
     public function intercept_posts_for_ads() {
+        // Debug mode
+        define('URLSHORTENER_DEBUG', true);
+        
+        if (URLSHORTENER_DEBUG) {
+            error_log('URLShortener Debug: intercept_posts_for_ads called');
+            error_log('URLShortener Debug: is_single=' . (is_single() ? 'true' : 'false'));
+            error_log('URLShortener Debug: is_admin=' . (is_admin() ? 'true' : 'false'));
+        }
+        
         // Only intercept single posts
         if (!is_single() || is_admin()) {
+            if (URLSHORTENER_DEBUG) {
+                error_log('URLShortener Debug: Not intercepting - not single post or is admin');
+            }
             return;
         }
         
         // Check if we have an active ads session
         if (!isset($_COOKIE['urlshortener_session'])) {
+            if (URLSHORTENER_DEBUG) {
+                error_log('URLShortener Debug: No session cookie found');
+            }
             return;
         }
         
         $session_key = sanitize_text_field($_COOKIE['urlshortener_session']);
+        if (URLSHORTENER_DEBUG) {
+            error_log('URLShortener Debug: Session key: ' . $session_key);
+        }
+        
         $url_data = get_transient($session_key);
+        if (URLSHORTENER_DEBUG) {
+            error_log('URLShortener Debug: URL data: ' . json_encode($url_data));
+        }
         
         // Check if session is valid and not expired
         if (!$url_data || !is_array($url_data)) {
+            if (URLSHORTENER_DEBUG) {
+                error_log('URLShortener Debug: Invalid session data, cleaning up');
+            }
             // Clean up invalid cookie
             setcookie('urlshortener_session', '', time() - 3600, '/');
             return;
@@ -1784,6 +1809,9 @@ class URLShortener_Frontend {
         
         // Check if session is expired (2 minutes)
         if (isset($url_data['expires']) && time() > $url_data['expires']) {
+            if (URLSHORTENER_DEBUG) {
+                error_log('URLShortener Debug: Session expired, cleaning up');
+            }
             // Clean up expired session
             delete_transient($session_key);
             setcookie('urlshortener_session', '', time() - 3600, '/');
@@ -1791,7 +1819,9 @@ class URLShortener_Frontend {
         }
         
         // We have a valid session - generate and display ads page
-        error_log('URLShortener: Valid session found, displaying ads');
+        if (URLSHORTENER_DEBUG) {
+            error_log('URLShortener Debug: Valid session found, displaying ads');
+        }
         
         // Generate ads page directly
         $this->display_ads_page_direct($url_data);
@@ -1815,15 +1845,14 @@ class URLShortener_Frontend {
     
     // Display ads page directly (new responsive design)
     public function display_ads_page_direct($url_data) {
+        if (URLSHORTENER_DEBUG) {
+            error_log('URLShortener Debug: display_ads_page_direct called');
+        }
+        
         // Get random post for metadata
         $random_post = $this->get_random_post();
-        
-        // Get ads data from server
-        $ads_data = $this->get_ads_data_from_server($url_data);
-        
-        if (!$ads_data) {
-            // Create fallback ads data
-            $ads_data = $this->create_fallback_ads_data($url_data, $random_post);
+        if (URLSHORTENER_DEBUG) {
+            error_log('URLShortener Debug: Random post: ' . ($random_post ? $random_post->ID : 'none'));
         }
         
         // Extract post metadata for display
@@ -1837,7 +1866,60 @@ class URLShortener_Frontend {
         // Current step
         $current_step = $url_data['step'] ?? 1;
         
-        echo $this->generate_new_ads_html($url_data, $ads_data, $post_title, $post_excerpt, $post_thumbnail, $post_date, $post_author, $post_url, $current_step);
+        if (URLSHORTENER_DEBUG) {
+            error_log('URLShortener Debug: Post metadata extracted');
+        }
+        
+        // For now, display a simple debug page
+        ?>
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title><?php echo esc_html($post_title); ?> - Anúncios</title>
+            <style>
+                body { background: #1a1a1a; color: #fff; font-family: Arial, sans-serif; padding: 20px; }
+                .container { max-width: 800px; margin: 0 auto; }
+                .debug { background: #333; padding: 20px; border-radius: 8px; margin: 20px 0; }
+                .success { color: #28a745; }
+                .error { color: #dc3545; }
+                .info { color: #007bff; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>🎯 Sistema de Anúncios Ativo</h1>
+                <p>Página interceptada com sucesso! Os anúncios serão exibidos aqui.</p>
+                
+                <div class="debug">
+                    <h3>🐛 Debug Information</h3>
+                    <div class="success">✅ WordPress hook funcionando</div>
+                    <div class="success">✅ Sessão válida encontrada</div>
+                    <div class="info">📝 Post: <?php echo esc_html($post_title); ?></div>
+                    <div class="info">📄 URL Original: <?php echo esc_html($url_data['original_url'] ?? 'N/A'); ?></div>
+                    <div class="info">⏰ Step: <?php echo $current_step; ?></div>
+                    <div class="info">🕒 Sessão expira: <?php echo date('Y-m-d H:i:s', $url_data['expires'] ?? time()); ?></div>
+                </div>
+                
+                <div class="debug">
+                    <h3>📊 Próximos Passos</h3>
+                    <p>✅ Sistema base funcionando<br>
+                    🔄 Implementar página de anúncios completa<br>
+                    🔄 Integração com servidor de anúncios<br>
+                    🔄 Sistema de analytics</p>
+                </div>
+                
+                <div style="margin-top: 30px;">
+                    <a href="<?php echo esc_url($url_data['original_url'] ?? '#'); ?>" 
+                       style="background: #007bff; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">
+                       📖 Ir para URL Original (Teste)
+                    </a>
+                </div>
+            </div>
+        </body>
+        </html>
+        <?php
     }
     
     // Create physical post.php file to handle requests
