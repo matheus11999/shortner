@@ -51,6 +51,9 @@ class DatabaseManager {
   }
 
   async initTables() {
+    // Run migrations first
+    await this.runMigrations();
+    
     const tables = [
       `CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -74,6 +77,7 @@ class DatabaseManager {
         timer_duration INTEGER DEFAULT 5,
         wp_api_url VARCHAR(500),
         wp_token VARCHAR(255),
+        referrals TEXT, -- JSON array of referral URLs
         status VARCHAR(50) DEFAULT 'active',
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
@@ -205,6 +209,24 @@ class DatabaseManager {
     }
 
     console.log(`📋 Database initialized with ${tablesCreated}/${tables.length} tables`);
+  }
+
+  async runMigrations() {
+    try {
+      // Add referrals column to adsites if it doesn't exist
+      const checkColumn = await this.pool.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'adsites' AND column_name = 'referrals'
+      `);
+      
+      if (checkColumn.rows.length === 0) {
+        await this.pool.query('ALTER TABLE adsites ADD COLUMN referrals TEXT');
+        console.log('✅ Added referrals column to adsites table');
+      }
+    } catch (err) {
+      console.error('🚨 Error running migrations:', err.message);
+    }
   }
 
   async createDefaultAdmin() {

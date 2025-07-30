@@ -110,7 +110,7 @@ router.get('/adsites', authenticateToken, requireAdmin, async (req, res) => {
               COUNT(cs.id) as assigned_sites_count
        FROM adsites a
        LEFT JOIN client_sites cs ON a.id = cs.assigned_adsite_id
-       GROUP BY a.id, a.name, a.url, a.api_token, a.banner_code, a.forced_click, a.timer_duration, a.wp_api_url, a.wp_token, a.status, a.created_at, a.updated_at
+       GROUP BY a.id, a.name, a.url, a.api_token, a.banner_code, a.forced_click, a.timer_duration, a.wp_api_url, a.wp_token, a.referrals, a.status, a.created_at, a.updated_at
        ORDER BY a.created_at DESC`
     );
 
@@ -123,6 +123,7 @@ router.get('/adsites', authenticateToken, requireAdmin, async (req, res) => {
       timerDuration: adsite.timer_duration,
       wpApiUrl: adsite.wp_api_url,
       wpToken: adsite.wp_token,
+      referrals: adsite.referrals ? JSON.parse(adsite.referrals) : [],
       createdAt: adsite.created_at,
       updatedAt: adsite.updated_at,
       assignedSitesCount: adsite.assigned_sites_count
@@ -136,7 +137,7 @@ router.get('/adsites', authenticateToken, requireAdmin, async (req, res) => {
 });
 
 router.post('/adsites', authenticateToken, requireAdmin, async (req, res) => {
-  const { name, url, forcedClick, timerDuration, wpApiUrl, wpToken } = req.body;
+  const { name, url, forcedClick, timerDuration, wpApiUrl, wpToken, referrals } = req.body;
 
   if (!name || !url) {
     return res.status(400).json({ error: 'Name and URL are required' });
@@ -144,10 +145,11 @@ router.post('/adsites', authenticateToken, requireAdmin, async (req, res) => {
 
   try {
     const apiToken = uuidv4();
+    const referralsJson = referrals && Array.isArray(referrals) ? JSON.stringify(referrals) : null;
     
     const result = await database.query(
-      'INSERT INTO adsites (name, url, api_token, forced_click, timer_duration, wp_api_url, wp_token) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
-      [name, url, apiToken, forcedClick || false, timerDuration || 5, wpApiUrl, wpToken]
+      'INSERT INTO adsites (name, url, api_token, forced_click, timer_duration, wp_api_url, wp_token, referrals) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
+      [name, url, apiToken, forcedClick || false, timerDuration || 5, wpApiUrl, wpToken, referralsJson]
     );
 
     res.status(201).json({
@@ -172,12 +174,14 @@ router.post('/adsites', authenticateToken, requireAdmin, async (req, res) => {
 
 router.put('/adsites/:id', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
-  const { name, url, forcedClick, timerDuration, wpApiUrl, wpToken, status } = req.body;
+  const { name, url, forcedClick, timerDuration, wpApiUrl, wpToken, referrals, status } = req.body;
 
   try {
+    const referralsJson = referrals && Array.isArray(referrals) ? JSON.stringify(referrals) : null;
+    
     const result = await database.query(
-      'UPDATE adsites SET name = $1, url = $2, forced_click = $3, timer_duration = $4, wp_api_url = $5, wp_token = $6, status = $7, updated_at = NOW() WHERE id = $8',
-      [name, url, forcedClick || false, timerDuration || 5, wpApiUrl, wpToken, status || 'active', id]
+      'UPDATE adsites SET name = $1, url = $2, forced_click = $3, timer_duration = $4, wp_api_url = $5, wp_token = $6, referrals = $7, status = $8, updated_at = NOW() WHERE id = $9',
+      [name, url, forcedClick || false, timerDuration || 5, wpApiUrl, wpToken, referralsJson, status || 'active', id]
     );
 
     if (result.rowCount === 0) {
@@ -185,6 +189,41 @@ router.put('/adsites/:id', authenticateToken, requireAdmin, async (req, res) => 
     }
 
     res.json({ message: 'AdSite updated successfully' });
+  } catch (err) {
+    console.error('🚨 Database error:', err);
+    res.status(500).json({ error: 'Database error', details: err.message });
+  }
+});
+
+// Get random referral for AdSite
+router.get('/adsites/:id/referral', async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    const adsite = await database.get('SELECT referrals FROM adsites WHERE id = $1', [id]);
+    
+    if (!adsite) {
+      return res.status(404).json({ error: 'AdSite not found' });
+    }
+    
+    let referrals = [];
+    if (adsite.referrals) {
+      try {
+        referrals = JSON.parse(adsite.referrals);
+      } catch (e) {
+        console.error('Error parsing referrals JSON:', e);
+      }
+    }
+    
+    if (referrals.length === 0) {
+      return res.json({ referral: null });
+    }
+    
+    // Select random referral
+    const randomIndex = Math.floor(Math.random() * referrals.length);
+    const selectedReferral = referrals[randomIndex];
+    
+    res.json({ referral: selectedReferral });
   } catch (err) {
     console.error('🚨 Database error:', err);
     res.status(500).json({ error: 'Database error', details: err.message });

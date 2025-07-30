@@ -8,7 +8,7 @@ echo "📦 Adding changes to git..."
 git add .
 
 echo "💬 Creating commit..."
-git commit -m "Fix: Add debug logging and JWT_SECRET fallback for login issues"
+git commit -m "Feature: WordPress plugin now captures URLs and displays ads with random post metadata"
 
 echo "📤 Pushing to GitHub..."
 git push origin backend

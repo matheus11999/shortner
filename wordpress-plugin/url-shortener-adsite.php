@@ -112,6 +112,7 @@ class URLShortenerAdSite {
 /**
  * URL Shortener AdSite Handler - Auto-generated v" . URLSHORTENER_VERSION . "
  * This file handles post.php?u=xxx requests for the URL Shortener plugin
+ * Captures URL from 'u' parameter and displays ads with random post metadata
  * Generated: " . date('Y-m-d H:i:s') . "
  */
 
@@ -129,48 +130,62 @@ if (!defined('ABSPATH')) {
 
 // Sanitize and decode the URL
 \$encoded_url = sanitize_text_field(\$_GET['u']);
-\$short_url = base64_decode(\$encoded_url);
+\$original_url = base64_decode(\$encoded_url);
 
-if (!\$short_url) {
+if (!\$original_url) {
+    // If decoding fails, treat as plain URL
+    \$original_url = sanitize_url(\$_GET['u']);
+}
+
+if (!\$original_url) {
     wp_redirect(home_url());
     exit;
 }
 
-error_log('URLShortener: Processing URL: ' . \$short_url);
+error_log('URLShortener: Processing URL for ads display: ' . \$original_url);
 
-// Store URL data for ads display
-\$session_key = 'urlshortener_' . md5(\$short_url . time());
+// Store URL data for ads display (temporary - no database storage)
+\$session_key = 'urlshortener_' . md5(\$original_url . time());
 \$url_data = array(
-    'original_url' => \$short_url,
+    'original_url' => \$original_url,
     'encoded_url' => \$encoded_url,
     'timestamp' => time(),
-    'show_ads' => true
+    'show_ads' => true,
+    'source' => 'post_php_handler'
 );
 
+// Store in transient for 1 hour
 set_transient(\$session_key, \$url_data, HOUR_IN_SECONDS);
 setcookie('urlshortener_session', \$session_key, time() + HOUR_IN_SECONDS, '/', '', is_ssl(), true);
 
-// Get a random post to redirect to (MASKING)
-\$posts = get_posts(array(
-    'numberposts' => 10,
-    'post_status' => 'publish',
-    'orderby' => 'rand',
-    'post_type' => 'post'
-));
-
-if (!empty(\$posts)) {
-    \$random_post = \$posts[0];
-    \$redirect_url = get_permalink(\$random_post->ID);
+// Generate ads page directly with random post metadata
+\$frontend_class = 'URLShortener_Frontend';
+if (class_exists(\$frontend_class)) {
+    \$frontend = call_user_func(array(\$frontend_class, 'get_instance'));
     
-    error_log('URLShortener: Masking - redirecting to post: ' . \$redirect_url);
+    // Generate and output the ads page with post metadata
+    \$ads_html = \$frontend->generate_ads_page_direct(\$url_data);
     
-    // Redirect to the post URL (masking)
-    wp_redirect(\$redirect_url);
+    // Output the complete HTML page
+    echo \$ads_html;
     exit;
 } else {
-    // No posts found, redirect to home
-    error_log('URLShortener: No posts found, redirecting to home');
-    wp_redirect(home_url());
+    // Fallback: Load WordPress and redirect to a random post
+    error_log('URLShortener: Frontend class not available, using fallback');
+    
+    \$posts = get_posts(array(
+        'numberposts' => 1,
+        'post_status' => 'publish',
+        'orderby' => 'rand',
+        'post_type' => 'post'
+    ));
+    
+    if (!empty(\$posts)) {
+        \$random_post = \$posts[0];
+        wp_redirect(get_permalink(\$random_post->ID));
+    } else {
+        wp_redirect(home_url());
+    }
     exit;
 }
 ?>

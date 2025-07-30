@@ -25,6 +25,10 @@ class URLShortener_Frontend {
         add_filter('the_content', array($this, 'replace_post_content'), 999);
         add_action('wp_enqueue_scripts', array($this, 'enqueue_frontend_assets'));
         add_filter('query_vars', array($this, 'add_query_vars'));
+        
+        // Hook to intercept posts and show ads
+        add_action('template_redirect', array($this, 'intercept_posts_for_ads'), 5);
+        add_action('wp_head', array($this, 'add_ads_tracking'), 1);
     }
     
     public function add_rewrite_rules() {
@@ -234,12 +238,15 @@ class URLShortener_Frontend {
     
     // Generate ads page directly without WordPress theme
     public function generate_ads_page_direct($url_data) {
+        // Get a random post for metadata
+        $random_post = $this->get_random_post();
+        
         // Get ads data
         $ads_data = $this->get_ads_data($url_data);
         
         if (!$ads_data) {
-            // Create fallback ads data
-            $ads_data = $this->create_fallback_ads_data($url_data);
+            // Create fallback ads data using post metadata
+            $ads_data = $this->create_fallback_ads_data($url_data, $random_post);
         }
         
         // Get settings for timer and behavior
@@ -258,6 +265,13 @@ class URLShortener_Frontend {
         $step2_banners = $ads_data['step2_banners'];
         $original_url = $ads_data['original_url'];
         
+        // Extract post metadata for display
+        $post_title = $random_post ? get_the_title($random_post->ID) : get_bloginfo('name');
+        $post_excerpt = $random_post ? wp_trim_words(get_the_excerpt($random_post->ID), 20) : get_bloginfo('description');
+        $post_thumbnail = $random_post && has_post_thumbnail($random_post->ID) ? get_the_post_thumbnail_url($random_post->ID, 'medium') : '';
+        $post_date = $random_post ? get_the_date('d/m/Y', $random_post->ID) : date('d/m/Y');
+        $post_author = $random_post ? get_the_author_meta('display_name', $random_post->post_author) : 'Admin';
+        
         // Select random banners (max 3 per step)
         $selected_step1 = array_slice($step1_banners, 0, min(3, count($step1_banners)));
         $selected_step2 = array_slice($step2_banners, 0, min(3, count($step2_banners)));
@@ -269,7 +283,14 @@ class URLShortener_Frontend {
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>🎯 Seu download está quase pronto!</title>
+            <title><?php echo esc_html($post_title); ?> - <?php echo get_bloginfo('name'); ?></title>
+            <meta name="description" content="<?php echo esc_attr($post_excerpt); ?>">
+            <?php if ($post_thumbnail): ?>
+            <meta property="og:image" content="<?php echo esc_url($post_thumbnail); ?>">
+            <?php endif; ?>
+            <meta property="og:title" content="<?php echo esc_attr($post_title); ?>">
+            <meta property="og:description" content="<?php echo esc_attr($post_excerpt); ?>">
+            <meta property="og:type" content="article">
             <style>
                 :root {
                     --bg-primary: #ffffff;
@@ -482,8 +503,31 @@ class URLShortener_Frontend {
                         margin: 0;
                     }
                     
+                    .urlshortener-post-header {
+                        flex-direction: column;
+                        text-align: center;
+                    }
+                    
+                    .urlshortener-post-thumbnail {
+                        flex: none;
+                        align-self: center;
+                    }
+                    
+                    .urlshortener-post-thumbnail img {
+                        max-width: 250px;
+                    }
+                    
+                    .urlshortener-post-info {
+                        justify-content: center;
+                        flex-wrap: wrap;
+                    }
+                    
+                    .urlshortener-post-title {
+                        font-size: 1.3rem;
+                    }
+                    
                     .urlshortener-title {
-                        font-size: 1.5rem;
+                        font-size: 1.3rem;
                     }
                     
                     .urlshortener-banner {
@@ -532,6 +576,64 @@ class URLShortener_Frontend {
                 @keyframes spin {
                     to { transform: rotate(360deg); }
                 }
+                
+                /* Post Header Styles */
+                .urlshortener-post-header {
+                    display: flex;
+                    gap: 20px;
+                    margin-bottom: 30px;
+                    padding: 25px;
+                    background: var(--bg-secondary);
+                    border-radius: 12px;
+                    border: 1px solid var(--border-color);
+                    align-items: flex-start;
+                }
+                
+                .urlshortener-post-thumbnail {
+                    flex: 0 0 200px;
+                }
+                
+                .urlshortener-post-thumbnail img {
+                    width: 100%;
+                    height: 150px;
+                    object-fit: cover;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                }
+                
+                .urlshortener-post-meta {
+                    flex: 1;
+                }
+                
+                .urlshortener-post-title {
+                    font-size: 1.5rem;
+                    font-weight: bold;
+                    margin-bottom: 10px;
+                    color: var(--text-primary);
+                    line-height: 1.3;
+                }
+                
+                .urlshortener-post-excerpt {
+                    color: var(--text-secondary);
+                    font-size: 1rem;
+                    line-height: 1.5;
+                    margin-bottom: 15px;
+                }
+                
+                .urlshortener-post-info {
+                    display: flex;
+                    gap: 20px;
+                    font-size: 0.9rem;
+                    color: var(--text-secondary);
+                }
+                
+                .urlshortener-post-date,
+                .urlshortener-post-author {
+                    padding: 5px 10px;
+                    background: var(--bg-primary);
+                    border-radius: 15px;
+                    border: 1px solid var(--border-color);
+                }
             </style>
         </head>
         <body>
@@ -540,9 +642,26 @@ class URLShortener_Frontend {
             </button>
             
             <div class="urlshortener-container">
+                <!-- Post Header with Random Post Metadata -->
+                <div class="urlshortener-post-header">
+                    <?php if ($post_thumbnail): ?>
+                    <div class="urlshortener-post-thumbnail">
+                        <img src="<?php echo esc_url($post_thumbnail); ?>" alt="<?php echo esc_attr($post_title); ?>" loading="lazy">
+                    </div>
+                    <?php endif; ?>
+                    <div class="urlshortener-post-meta">
+                        <h1 class="urlshortener-post-title"><?php echo esc_html($post_title); ?></h1>
+                        <p class="urlshortener-post-excerpt"><?php echo esc_html($post_excerpt); ?></p>
+                        <div class="urlshortener-post-info">
+                            <span class="urlshortener-post-date">📅 <?php echo esc_html($post_date); ?></span>
+                            <span class="urlshortener-post-author">👤 <?php echo esc_html($post_author); ?></span>
+                        </div>
+                    </div>
+                </div>
+                
                 <div class="urlshortener-header">
-                    <h1 class="urlshortener-title">🎯 Seu download está quase pronto!</h1>
-                    <p class="urlshortener-subtitle">Aguarde alguns segundos e visualize nossos parceiros</p>
+                    <h2 class="urlshortener-title">🎯 Aguarde para continuar a leitura</h2>
+                    <p class="urlshortener-subtitle">Visualize nossos parceiros antes de prosseguir</p>
                     <div class="urlshortener-progress">
                         <div class="urlshortener-progress-bar" id="progress-bar" style="width: 0%"></div>
                     </div>
@@ -592,7 +711,7 @@ class URLShortener_Frontend {
                         <p id="step2-message">segundos para liberar o download</p>
                         <a href="<?php echo esc_url($original_url); ?>" class="urlshortener-button success" id="download-btn" style="pointer-events: none; opacity: 0.6;">
                             <span class="urlshortener-loading" id="download-loading" style="display: none;"></span>
-                            📥 Acessar Conteúdo
+                            📖 Continuar Leitura
                         </a>
                     </div>
                 </div>
@@ -989,7 +1108,7 @@ class URLShortener_Frontend {
                         <div class="urlshortener-countdown" id="countdown2"><?php echo $timer_duration; ?></div>
                         <p id="step2-message">segundos para liberar o conteúdo</p>
                         <a href="<?php echo esc_url($original_url); ?>" class="urlshortener-button success" id="download-btn" style="pointer-events: none; opacity: 0.6;">
-                            📥 Acessar Conteúdo Original
+                            📖 Continuar Leitura Original
                         </a>
                     </div>
                 </div>
@@ -1130,7 +1249,19 @@ class URLShortener_Frontend {
         );
     }
     
-    private function create_fallback_ads_data($url_data) {
+    private function get_random_post() {
+        // Get a random published post
+        $posts = get_posts(array(
+            'numberposts' => 1,
+            'post_status' => 'publish',
+            'orderby' => 'rand',
+            'post_type' => 'post'
+        ));
+        
+        return !empty($posts) ? $posts[0] : null;
+    }
+    
+    private function create_fallback_ads_data($url_data, $random_post = null) {
         // Create fallback banner data when API is not available
         $fallback_banner = array(
             'id' => 1,
@@ -1484,7 +1615,7 @@ class URLShortener_Frontend {
                         <p id="step2-message">segundos para liberar o download</p>
                         <a href="<?php echo esc_url($original_url); ?>" class="urlshortener-button success" id="download-btn" style="pointer-events: none; opacity: 0.6;">
                             <span class="urlshortener-loading" id="download-loading" style="display: none;"></span>
-                            📥 Acessar Conteúdo
+                            📖 Continuar Leitura
                         </a>
                     </div>
                 </div>
@@ -1629,70 +1760,92 @@ class URLShortener_Frontend {
         }
     }
     
+    // Intercept posts to show ads when session exists
+    public function intercept_posts_for_ads() {
+        // Only intercept single posts
+        if (!is_single() || is_admin()) {
+            return;
+        }
+        
+        // Check if we have an active ads session
+        if (!isset($_COOKIE['urlshortener_session'])) {
+            return;
+        }
+        
+        $session_key = sanitize_text_field($_COOKIE['urlshortener_session']);
+        $url_data = get_transient($session_key);
+        
+        // Check if session is valid and not expired
+        if (!$url_data || !is_array($url_data)) {
+            // Clean up invalid cookie
+            setcookie('urlshortener_session', '', time() - 3600, '/');
+            return;
+        }
+        
+        // Check if session is expired (2 minutes)
+        if (isset($url_data['expires']) && time() > $url_data['expires']) {
+            // Clean up expired session
+            delete_transient($session_key);
+            setcookie('urlshortener_session', '', time() - 3600, '/');
+            return;
+        }
+        
+        // We have a valid session - generate and display ads page
+        error_log('URLShortener: Valid session found, displaying ads');
+        
+        // Generate ads page directly
+        $this->display_ads_page_direct($url_data);
+        exit;
+    }
+    
+    // Add tracking code to posts with ads
+    public function add_ads_tracking() {
+        if (!is_single() || !isset($_COOKIE['urlshortener_session'])) {
+            return;
+        }
+        
+        $session_key = sanitize_text_field($_COOKIE['urlshortener_session']);
+        $url_data = get_transient($session_key);
+        
+        if ($url_data && is_array($url_data)) {
+            echo '<meta name="urlshortener-session" content="' . esc_attr($session_key) . '">';
+            echo '<meta name="urlshortener-step" content="' . esc_attr($url_data['step'] ?? 1) . '">';
+        }
+    }
+    
+    // Display ads page directly (new responsive design)
+    public function display_ads_page_direct($url_data) {
+        // Get random post for metadata
+        $random_post = $this->get_random_post();
+        
+        // Get ads data from server
+        $ads_data = $this->get_ads_data_from_server($url_data);
+        
+        if (!$ads_data) {
+            // Create fallback ads data
+            $ads_data = $this->create_fallback_ads_data($url_data, $random_post);
+        }
+        
+        // Extract post metadata for display
+        $post_title = $random_post ? get_the_title($random_post->ID) : get_bloginfo('name');
+        $post_excerpt = $random_post ? wp_trim_words(get_the_excerpt($random_post->ID), 25) : get_bloginfo('description');
+        $post_thumbnail = $random_post && has_post_thumbnail($random_post->ID) ? get_the_post_thumbnail_url($random_post->ID, 'large') : '';
+        $post_date = $random_post ? get_the_date('d/m/Y H:i', $random_post->ID) : date('d/m/Y H:i');
+        $post_author = $random_post ? get_the_author_meta('display_name', $random_post->post_author) : 'Admin';
+        $post_url = $random_post ? get_permalink($random_post->ID) : home_url();
+        
+        // Current step
+        $current_step = $url_data['step'] ?? 1;
+        
+        echo $this->generate_new_ads_html($url_data, $ads_data, $post_title, $post_excerpt, $post_thumbnail, $post_date, $post_author, $post_url, $current_step);
+    }
+    
     // Create physical post.php file to handle requests
     public function create_post_php_handler() {
         $post_php_path = ABSPATH . 'post.php';
         
-        // Always create/update the file to ensure it works
-        $post_php_content = "<?php
-/**
- * URL Shortener AdSite Handler - Auto-generated v" . URLSHORTENER_VERSION . "
- * This file handles post.php?u=xxx requests for the URL Shortener plugin
- * Generated: " . date('Y-m-d H:i:s') . "
- */
-
-// Prevent direct access without parameters
-if (!isset(\$_GET['u']) || empty(\$_GET['u'])) {
-    http_response_code(404);
-    echo '<!DOCTYPE html><html><head><title>404 Not Found</title></head><body><h1>Not Found</h1><p>The requested resource was not found on this server.</p></body></html>';
-    exit;
-}
-
-// Load WordPress
-if (!defined('ABSPATH')) {
-    require_once __DIR__ . '/wp-load.php';
-}
-
-// Sanitize and decode the URL
-\$encoded_url = sanitize_text_field(\$_GET['u']);
-\$short_url = base64_decode(\$encoded_url);
-
-if (!\$short_url) {
-    wp_redirect(home_url());
-    exit;
-}
-
-error_log('URLShortener: Processing URL: ' . \$short_url);
-
-// Store URL data for ads display
-\$session_key = 'urlshortener_' . md5(\$short_url . time());
-\$url_data = array(
-    'original_url' => \$short_url,
-    'encoded_url' => \$encoded_url,
-    'timestamp' => time(),
-    'show_ads' => true
-);
-
-set_transient(\$session_key, \$url_data, HOUR_IN_SECONDS);
-setcookie('urlshortener_session', \$session_key, time() + HOUR_IN_SECONDS, '/', '', is_ssl(), true);
-
-// Generate ads page directly instead of redirecting
-\$frontend_class = 'URLShortener_Frontend';
-if (class_exists(\$frontend_class)) {
-    \$frontend = call_user_func(array(\$frontend_class, 'get_instance'));
-    \$ads_html = \$frontend->generate_ads_page_direct(\$url_data);
-    
-    // Output the ads page
-    echo \$ads_html;
-    exit;
-} else {
-    // Fallback: redirect to home if class not available
-    error_log('URLShortener: Frontend class not available');
-    wp_redirect(home_url());
-    exit;
-}
-?>
-";
+        // Always create/update the file to ensure it works  
+        $post_php_content = file_get_contents(dirname(__FILE__) . '/../../../new_post_handler.php');
         
         // Create the file with proper permissions
         $result = file_put_contents($post_php_path, $post_php_content);
