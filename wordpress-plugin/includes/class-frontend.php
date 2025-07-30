@@ -1394,20 +1394,6 @@ class URLShortener_Frontend {
             <title><?php echo get_the_title(); ?> - <?php echo get_bloginfo('name'); ?></title>
             <style>
                 :root {
-                    --bg-primary: #ffffff;
-                    --bg-secondary: #f8f9fa;
-                    --bg-tertiary: #e9ecef;
-                    --text-primary: #212529;
-                    --text-secondary: #6c757d;
-                    --border-color: #dee2e6;
-                    --accent-color: #007bff;
-                    --success-color: #28a745;
-                    --warning-color: #ffc107;
-                    --danger-color: #dc3545;
-                    --shadow: rgba(0,0,0,0.1);
-                }
-                
-                [data-theme="dark"] {
                     --bg-primary: #0d1117;
                     --bg-secondary: #161b22;
                     --bg-tertiary: #21262d;
@@ -1644,29 +1630,55 @@ class URLShortener_Frontend {
                     color: white;
                 }
                 
-                .theme-toggle {
-                    position: fixed;
-                    top: 20px;
-                    right: 20px;
-                    width: 50px;
-                    height: 50px;
-                    border-radius: 50%;
-                    background: var(--bg-secondary);
-                    border: 1px solid var(--border-color);
-                    color: var(--text-primary);
-                    cursor: pointer;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 1.2rem;
-                    transition: all 0.3s ease;
-                    box-shadow: 0 4px 12px var(--shadow);
-                    z-index: 1000;
+                .step-section {
+                    margin: 40px 0;
+                    transition: all 0.5s ease;
                 }
                 
-                .theme-toggle:hover {
-                    transform: scale(1.1);
+                .step-section.hidden {
+                    display: none;
                 }
+                
+                .step-section.active {
+                    display: block;
+                    animation: slideInUp 0.6s ease;
+                }
+                
+                .step-header {
+                    text-align: center;
+                    margin-bottom: 30px;
+                    padding: 20px;
+                    background: var(--bg-secondary);
+                    border-radius: 12px;
+                    border: 1px solid var(--border-color);
+                }
+                
+                .step-title {
+                    font-size: 1.8rem;
+                    font-weight: 700;
+                    margin-bottom: 10px;
+                    background: linear-gradient(135deg, var(--accent-color), var(--success-color));
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    background-clip: text;
+                }
+                
+                .step-subtitle {
+                    color: var(--text-secondary);
+                    font-size: 1rem;
+                }
+                
+                @keyframes slideInUp {
+                    from {
+                        opacity: 0;
+                        transform: translateY(30px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+                
                 
                 @media (max-width: 768px) {
                     .ads-container { padding: 15px; }
@@ -1687,10 +1699,6 @@ class URLShortener_Frontend {
             </style>
         </head>
         <body>
-            <button class="theme-toggle" onclick="toggleTheme()" title="Alternar tema">
-                🌙
-            </button>
-            
             <div class="ads-container">
                 <!-- Header Section -->
                 <div class="header-section">
@@ -1702,43 +1710,88 @@ class URLShortener_Frontend {
                     </div>
                 </div>
                 
-                <!-- Ads Section -->
-                <div class="ads-grid">
-                    <?php if (!empty($selected_step1)): ?>
-                        <?php foreach ($selected_step1 as $index => $banner): ?>
-                            <div class="banner-card" onclick="trackBannerClick(1, <?php echo $index; ?>)" data-banner-id="<?php echo $banner['id']; ?>">
+                <!-- Step 1 Section -->
+                <div id="step1" class="step-section active">
+                    <div class="step-header">
+                        <h2 class="step-title">📋 Etapa 1 de 2</h2>
+                        <p class="step-subtitle">Visualize os anúncios de nossos parceiros</p>
+                    </div>
+                    
+                    <div class="ads-grid">
+                        <?php if (!empty($selected_step1)): ?>
+                            <?php foreach ($selected_step1 as $index => $banner): ?>
+                                <div class="banner-card" onclick="trackBannerClick(1, <?php echo $index; ?>)" data-banner-id="<?php echo $banner['id']; ?>" data-step="1">
+                                    <div class="banner-content">
+                                        <?php echo wp_kses_post($banner['code']); ?>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <!-- Fallback banners Step 1 -->
+                            <div class="banner-card" onclick="trackBannerClick(1, 0)" data-banner-id="fallback-1" data-step="1">
                                 <div class="banner-content">
-                                    <?php echo wp_kses_post($banner['code']); ?>
+                                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; text-align: center; color: white; border-radius: 10px; font-family: Arial, sans-serif;">
+                                        <h3 style="margin: 0 0 15px 0;">🎯 Anúncio Premium</h3>
+                                        <p style="margin: 0; opacity: 0.9;">Clique aqui para saber mais</p>
+                                    </div>
                                 </div>
                             </div>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <!-- Fallback banners -->
-                        <div class="banner-card">
-                            <div class="banner-content">
-                                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; text-align: center; color: white; border-radius: 10px; font-family: Arial, sans-serif;">
-                                    <h3 style="margin: 0 0 15px 0;">🎯 Anúncio Premium</h3>
-                                    <p style="margin: 0; opacity: 0.9;">Clique aqui para saber mais</p>
+                            <div class="banner-card" onclick="trackBannerClick(1, 1)" data-banner-id="fallback-2" data-step="1">
+                                <div class="banner-content">
+                                    <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 40px; text-align: center; color: white; border-radius: 10px; font-family: Arial, sans-serif;">
+                                        <h3 style="margin: 0 0 15px 0;">💎 Oferta Especial</h3>
+                                        <p style="margin: 0; opacity: 0.9;">Não perca esta oportunidade</p>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        <div class="banner-card">
-                            <div class="banner-content">
-                                <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 40px; text-align: center; color: white; border-radius: 10px; font-family: Arial, sans-serif;">
-                                    <h3 style="margin: 0 0 15px 0;">💎 Oferta Especial</h3>
-                                    <p style="margin: 0; opacity: 0.9;">Não perca esta oportunidade</p>
+                            <div class="banner-card" onclick="trackBannerClick(1, 2)" data-banner-id="fallback-3" data-step="1">
+                                <div class="banner-content">
+                                    <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 40px; text-align: center; color: white; border-radius: 10px; font-family: Arial, sans-serif;">
+                                        <h3 style="margin: 0 0 15px 0;">🚀 Promoção Limitada</h3>
+                                        <p style="margin: 0; opacity: 0.9;">Últimas unidades disponíveis</p>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        <div class="banner-card">
-                            <div class="banner-content">
-                                <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 40px; text-align: center; color: white; border-radius: 10px; font-family: Arial, sans-serif;">
-                                    <h3 style="margin: 0 0 15px 0;">🚀 Promoção Limitada</h3>
-                                    <p style="margin: 0; opacity: 0.9;">Últimas unidades disponíveis</p>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                
+                <!-- Step 2 Section -->
+                <div id="step2" class="step-section hidden">
+                    <div class="step-header">
+                        <h2 class="step-title">🎯 Etapa 2 de 2</h2>
+                        <p class="step-subtitle">Última etapa antes do redirecionamento</p>
+                    </div>
+                    
+                    <div class="ads-grid">
+                        <?php if (!empty($selected_step2)): ?>
+                            <?php foreach ($selected_step2 as $index => $banner): ?>
+                                <div class="banner-card" onclick="trackBannerClick(2, <?php echo $index; ?>)" data-banner-id="<?php echo $banner['id']; ?>" data-step="2">
+                                    <div class="banner-content">
+                                        <?php echo wp_kses_post($banner['code']); ?>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <!-- Fallback banners Step 2 -->
+                            <div class="banner-card" onclick="trackBannerClick(2, 0)" data-banner-id="fallback-4" data-step="2">
+                                <div class="banner-content">
+                                    <div style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%); padding: 40px; text-align: center; color: white; border-radius: 10px; font-family: Arial, sans-serif;">
+                                        <h3 style="margin: 0 0 15px 0;">⚡ Super Oferta</h3>
+                                        <p style="margin: 0; opacity: 0.9;">Última chance - Clique aqui!</p>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    <?php endif; ?>
+                            <div class="banner-card" onclick="trackBannerClick(2, 1)" data-banner-id="fallback-5" data-step="2">
+                                <div class="banner-content">
+                                    <div style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); padding: 40px; text-align: center; color: #333; border-radius: 10px; font-family: Arial, sans-serif;">
+                                        <h3 style="margin: 0 0 15px 0;">🌟 Destaque</h3>
+                                        <p style="margin: 0; opacity: 0.9;">Produto em alta - Confira!</p>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                    </div>
                 </div>
                 
                 <!-- Timer Section -->
@@ -1782,40 +1835,98 @@ class URLShortener_Frontend {
                     <div class="footer-links">
                         <a href="<?php echo home_url(); ?>" class="footer-link">🏠 Início</a>
                         <a href="<?php echo esc_html($original_url); ?>" class="footer-link">🔗 URL Original</a>
-                        <a href="#" onclick="toggleTheme()" class="footer-link">🌙 Tema</a>
                     </div>
                 </div>
             </div>
             
             <script>
                 // Configuration
-                let timeLeft = <?php echo $timer_duration; ?>;
-                let totalTime = <?php echo $timer_duration; ?>;
+                let step1Timer = 5;
+                let step2Timer = <?php echo $timer_duration; ?>;
+                let timeLeft = step1Timer;
+                let totalTime = step1Timer;
                 let clickedBanners = [];
                 let currentStep = 1;
                 let forcedClick = <?php echo $forced_click ? 'true' : 'false'; ?>;
+                let clientSiteId = '<?php echo esc_js($url_data['client_site_id'] ?? ''); ?>';
+                let analytics = {
+                    session_id: '<?php echo esc_js($url_data['session_id']); ?>',
+                    client_site_id: clientSiteId,
+                    original_url: '<?php echo esc_js($original_url); ?>',
+                    start_time: Date.now(),
+                    step1_start: Date.now(),
+                    step1_end: null,
+                    step2_start: null,
+                    step2_end: null,
+                    clicks: [],
+                    unique_user: true
+                };
                 
                 // DOM Elements
                 const countdownEl = document.getElementById('countdown');
                 const progressBar = document.getElementById('progress-bar');
                 const continueBtn = document.getElementById('continue-btn');
-                const themeToggle = document.querySelector('.theme-toggle');
                 
                 // Update timer display
                 function updateTimer() {
                     countdownEl.textContent = timeLeft;
-                    const progressPercent = ((totalTime - timeLeft) / totalTime) * 100;
-                    progressBar.style.width = progressPercent + '%';
+                    
+                    let totalProgress;
+                    if (currentStep === 1) {
+                        totalProgress = ((step1Timer - timeLeft) / step1Timer) * 50; // 50% for step 1
+                    } else {
+                        totalProgress = 50 + ((step2Timer - timeLeft) / step2Timer) * 50; // 50% + step 2 progress
+                    }
+                    
+                    progressBar.style.width = totalProgress + '%';
                     
                     if (timeLeft <= 0) {
-                        continueBtn.classList.add('active');
-                        countdownEl.textContent = '0';
-                        progressBar.style.width = '100%';
+                        if (currentStep === 1) {
+                            // Move to Step 2
+                            goToStep2();
+                        } else {
+                            // Enable continue button
+                            continueBtn.classList.add('active');
+                            countdownEl.textContent = '0';
+                            progressBar.style.width = '100%';
+                        }
                         return;
                     }
                     
                     timeLeft--;
                     setTimeout(updateTimer, 1000);
+                }
+                
+                // Move to Step 2
+                function goToStep2() {
+                    analytics.step1_end = Date.now();
+                    analytics.step2_start = Date.now();
+                    
+                    // Hide Step 1, Show Step 2
+                    document.getElementById('step1').classList.remove('active');
+                    document.getElementById('step1').classList.add('hidden');
+                    document.getElementById('step2').classList.remove('hidden');
+                    document.getElementById('step2').classList.add('active');
+                    
+                    // Update timer for Step 2
+                    currentStep = 2;
+                    timeLeft = step2Timer;
+                    totalTime = step2Timer;
+                    
+                    // Update stats
+                    const statsCards = document.querySelectorAll('.stat-card');
+                    if (statsCards[2]) {
+                        statsCards[2].querySelector('.stat-number').textContent = '2';
+                    }
+                    
+                    // Send step 1 completion analytics
+                    sendAnalytics({
+                        action: 'step1_completed',
+                        ...analytics,
+                        duration: analytics.step1_end - analytics.step1_start
+                    });
+                    
+                    console.log('Moved to Step 2');
                 }
                 
                 // Track banner clicks
@@ -1832,22 +1943,29 @@ class URLShortener_Frontend {
                         bannerCard.style.transform = 'translateY(-5px)';
                     }, 150);
                     
-                    // Track click for analytics
-                    clickedBanners.push({
+                    // Create detailed click data
+                    const clickData = {
                         step: step,
                         index: index,
-                        bannerId: bannerId,
-                        timestamp: Date.now()
-                    });
+                        banner_id: bannerId,
+                        timestamp: Date.now(),
+                        client_site_id: clientSiteId,
+                        session_id: analytics.session_id
+                    };
                     
-                    console.log('Banner clicked:', clickedBanners);
+                    // Track click for analytics
+                    clickedBanners.push(clickData);
+                    analytics.clicks.push(clickData);
                     
-                    // Send analytics to server (if configured)
+                    console.log('Banner clicked:', clickData);
+                    
+                    // Send analytics to server
                     sendAnalytics({
                         action: 'banner_click',
-                        step: step,
-                        banner_id: bannerId,
-                        session_id: getCookie('urlshortener_session')
+                        ...clickData,
+                        user_agent: navigator.userAgent,
+                        screen_resolution: screen.width + 'x' + screen.height,
+                        current_url: window.location.href
                     });
                 }
                 
@@ -1857,28 +1975,33 @@ class URLShortener_Frontend {
                         return;
                     }
                     
+                    analytics.step2_end = Date.now();
+                    
+                    // Calculate total session duration
+                    const totalDuration = analytics.step2_end - analytics.start_time;
+                    const step1Duration = analytics.step1_end - analytics.step1_start;
+                    const step2Duration = analytics.step2_end - analytics.step2_start;
+                    
                     // Send completion analytics
                     sendAnalytics({
-                        action: 'completed_step1',
-                        clicked_banners: clickedBanners,
-                        session_id: getCookie('urlshortener_session')
+                        action: 'session_completed',
+                        ...analytics,
+                        total_duration: totalDuration,
+                        step1_duration: step1Duration,
+                        step2_duration: step2Duration,
+                        total_clicks: analytics.clicks.length,
+                        clicks_step1: analytics.clicks.filter(c => c.step === 1).length,
+                        clicks_step2: analytics.clicks.filter(c => c.step === 2).length,
+                        completion_rate: 100,
+                        referrer: document.referrer || 'direct'
                     });
+                    
+                    console.log('Session completed, redirecting to:', '<?php echo esc_js($original_url); ?>');
                     
                     // Redirect to original URL
                     window.location.href = '<?php echo esc_js($original_url); ?>';
                 }
                 
-                // Theme toggle
-                function toggleTheme() {
-                    const html = document.documentElement;
-                    const currentTheme = html.getAttribute('data-theme');
-                    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-                    
-                    html.setAttribute('data-theme', newTheme);
-                    localStorage.setItem('theme', newTheme);
-                    
-                    themeToggle.textContent = newTheme === 'dark' ? '☀️' : '🌙';
-                }
                 
                 // Send analytics to server
                 function sendAnalytics(data) {
@@ -1910,16 +2033,8 @@ class URLShortener_Frontend {
                     return null;
                 }
                 
-                // Initialize theme
-                function initTheme() {
-                    const savedTheme = localStorage.getItem('theme') || 'dark';
-                    document.documentElement.setAttribute('data-theme', savedTheme);
-                    themeToggle.textContent = savedTheme === 'dark' ? '☀️' : '🌙';
-                }
-                
                 // Initialize everything
                 document.addEventListener('DOMContentLoaded', function() {
-                    initTheme();
                     updateTimer();
                     
                     console.log('URLShortener Ads Page initialized');
@@ -2048,6 +2163,10 @@ if (!defined(\'ABSPATH\')) {
 $encoded_url = sanitize_text_field($_GET[\'u\']);
 debug_log(\'Encoded URL: \' . $encoded_url);
 
+// Capture client site ID if provided
+$client_site_id = isset($_GET[\'id\']) ? sanitize_text_field($_GET[\'id\']) : null;
+debug_log(\'Client Site ID: \' . ($client_site_id ? $client_site_id : \'Not provided\'));
+
 $original_url = base64_decode($encoded_url);
 debug_log(\'Decoded URL: \' . $original_url);
 
@@ -2071,12 +2190,15 @@ debug_log(\'Session key: \' . $session_key);
 $url_data = array(
     \'original_url\' => $original_url,
     \'encoded_url\' => $encoded_url,
+    \'client_site_id\' => $client_site_id,
     \'timestamp\' => time(),
     \'expires\' => time() + (2 * 60), // 2 minutes
     \'show_ads\' => true,
     \'source\' => \'post_php_handler\',
     \'step\' => 1,
-    \'session_id\' => $session_key
+    \'session_id\' => $session_key,
+    \'ip_address\' => $_SERVER[\'REMOTE_ADDR\'] ?? \'unknown\',
+    \'user_agent\' => $_SERVER[\'HTTP_USER_AGENT\'] ?? \'unknown\'
 );
 debug_log(\'URL data created: \' . json_encode($url_data));
 
