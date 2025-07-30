@@ -239,6 +239,62 @@ class URLShortener_Frontend {
         return $ads_html;
     }
     
+    public function intercept_posts_for_ads() {
+        // Only intercept single posts, not admin pages
+        if (!is_single() || is_admin()) {
+            return;
+        }
+
+        // Check if we have a session cookie
+        if (!isset($_COOKIE['urlshortener_session'])) {
+            return;
+        }
+
+        $session_key = sanitize_text_field($_COOKIE['urlshortener_session']);
+        $url_data = get_transient($session_key);
+
+        if (!$url_data) {
+            // Session expired, remove cookie
+            setcookie('urlshortener_session', '', time() - 3600, '/', '', is_ssl(), true);
+            return;
+        }
+
+        // Check if session is expired (2 minutes)
+        if (isset($url_data['expires']) && time() > $url_data['expires']) {
+            delete_transient($session_key);
+            setcookie('urlshortener_session', '', time() - 3600, '/', '', is_ssl(), true);
+            return;
+        }
+
+        // Display ads page instead of post content
+        $this->display_ads_page_direct($url_data);
+        exit;
+    }
+    
+    public function display_ads_page_direct($url_data) {
+        // Get ads data from API
+        $ads_data = $this->get_ads_data($url_data);
+        
+        if (!$ads_data) {
+            error_log('URLShortener: No ads data found, using fallback');
+            // Create fallback ads data
+            $ads_data = $this->create_fallback_ads_data($url_data);
+        }
+        
+        // Generate ads HTML
+        $ads_html = $this->generate_ads_html($url_data, $ads_data);
+        
+        // Output the HTML
+        echo $ads_html;
+    }
+    
+    public function add_ads_tracking() {
+        // Add tracking meta tags if session exists
+        if (isset($_COOKIE['urlshortener_session'])) {
+            echo '<meta name="urlshortener-session" content="active">' . "\n";
+        }
+    }
+    
     // Generate ads page directly without WordPress theme
     public function generate_ads_page_direct($url_data) {
         // Get a random post for metadata
