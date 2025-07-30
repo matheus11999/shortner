@@ -29,6 +29,9 @@ class URLShortener_Frontend {
         // Hook to intercept posts and show ads
         add_action('template_redirect', array($this, 'intercept_posts_for_ads'), 5);
         add_action('wp_head', array($this, 'add_ads_tracking'), 1);
+        
+        // Initialize AJAX handlers
+        add_action('init', array($this, 'init_analytics_ajax'));
     }
     
     public function add_rewrite_rules() {
@@ -1327,899 +1330,595 @@ class URLShortener_Frontend {
         
         ob_start();
         ?>
-        <div id="urlshortener-ads-container" class="urlshortener-ads-wrapper">
+        <!DOCTYPE html>
+        <html lang="pt-BR" data-theme="dark">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title><?php echo get_the_title(); ?> - <?php echo get_bloginfo('name'); ?></title>
             <style>
                 :root {
                     --bg-primary: #ffffff;
                     --bg-secondary: #f8f9fa;
+                    --bg-tertiary: #e9ecef;
                     --text-primary: #212529;
                     --text-secondary: #6c757d;
                     --border-color: #dee2e6;
                     --accent-color: #007bff;
                     --success-color: #28a745;
                     --warning-color: #ffc107;
+                    --danger-color: #dc3545;
+                    --shadow: rgba(0,0,0,0.1);
                 }
                 
                 [data-theme="dark"] {
-                    --bg-primary: #1a1a1a;
-                    --bg-secondary: #2d2d2d;
-                    --text-primary: #ffffff;
-                    --text-secondary: #b0b0b0;
-                    --border-color: #404040;
-                    --accent-color: #0d6efd;
-                    --success-color: #198754;
-                    --warning-color: #ffc107;
+                    --bg-primary: #0d1117;
+                    --bg-secondary: #161b22;
+                    --bg-tertiary: #21262d;
+                    --text-primary: #f0f6fc;
+                    --text-secondary: #8b949e;
+                    --border-color: #30363d;
+                    --accent-color: #58a6ff;
+                    --success-color: #3fb950;
+                    --warning-color: #d29922;
+                    --danger-color: #f85149;
+                    --shadow: rgba(0,0,0,0.3);
                 }
                 
-                .urlshortener-ads-wrapper {
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                
+                body {
                     background: var(--bg-primary);
                     color: var(--text-primary);
-                    min-height: 100vh;
-                    padding: 20px;
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                    line-height: 1.6;
                     transition: all 0.3s ease;
                 }
                 
-                .urlshortener-container {
-                    max-width: 800px;
+                .ads-container {
+                    max-width: 1200px;
                     margin: 0 auto;
+                    padding: 20px;
+                    min-height: 100vh;
+                }
+                
+                .header-section {
+                    text-align: center;
+                    margin-bottom: 40px;
+                    padding: 30px 20px;
+                    background: var(--bg-secondary);
+                    border-radius: 15px;
+                    border: 1px solid var(--border-color);
+                    box-shadow: 0 4px 12px var(--shadow);
+                }
+                
+                .header-title {
+                    font-size: 2.5rem;
+                    font-weight: 700;
+                    margin-bottom: 15px;
+                    background: linear-gradient(135deg, var(--accent-color), var(--success-color));
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    background-clip: text;
+                }
+                
+                .header-subtitle {
+                    font-size: 1.2rem;
+                    color: var(--text-secondary);
+                    margin-bottom: 25px;
+                }
+                
+                .post-info {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 15px;
+                    padding: 12px 24px;
+                    background: var(--bg-tertiary);
+                    border-radius: 25px;
+                    font-size: 0.95rem;
+                    color: var(--text-secondary);
+                }
+                
+                .ads-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                    gap: 25px;
+                    margin: 40px 0;
+                }
+                
+                .banner-card {
                     background: var(--bg-secondary);
                     border-radius: 12px;
-                    padding: 30px;
-                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                    border: 1px solid var(--border-color);
-                }
-                
-                .urlshortener-header {
-                    text-align: center;
-                    margin-bottom: 30px;
-                    padding-bottom: 20px;
-                    border-bottom: 2px solid var(--border-color);
-                }
-                
-                .urlshortener-title {
-                    font-size: 2rem;
-                    font-weight: bold;
-                    margin-bottom: 10px;
-                    color: var(--text-primary);
-                }
-                
-                .urlshortener-subtitle {
-                    color: var(--text-secondary);
-                    font-size: 1.1rem;
-                }
-                
-                .urlshortener-step {
-                    display: none;
-                }
-                
-                .urlshortener-step.active {
-                    display: block;
-                    animation: fadeIn 0.5s ease;
-                }
-                
-                @keyframes fadeIn {
-                    from { opacity: 0; transform: translateY(20px); }
-                    to { opacity: 1; transform: translateY(0); }
-                }
-                
-                .urlshortener-banner {
-                    margin: 20px 0;
                     padding: 20px;
-                    background: linear-gradient(135deg, var(--accent-color), #0056b3);
-                    border-radius: 8px;
-                    color: white;
-                    text-align: center;
-                    cursor: pointer;
+                    border: 1px solid var(--border-color);
+                    box-shadow: 0 4px 12px var(--shadow);
                     transition: all 0.3s ease;
-                    border: 3px solid transparent;
                     position: relative;
                     overflow: hidden;
                 }
                 
-                .urlshortener-banner:hover {
-                    transform: translateY(-2px);
-                    box-shadow: 0 8px 15px rgba(0,123,255,0.3);
+                .banner-card:hover {
+                    transform: translateY(-5px);
+                    box-shadow: 0 8px 24px var(--shadow);
                 }
                 
-                .urlshortener-banner.clicked {
-                    background: linear-gradient(135deg, var(--success-color), #1e7e34);
-                    border-color: var(--success-color);
+                .banner-card::before {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    height: 3px;
+                    background: linear-gradient(90deg, var(--accent-color), var(--success-color));
                 }
                 
-                .urlshortener-banner-label {
-                    font-size: 0.9rem;
-                    margin-bottom: 10px;
-                    opacity: 0.9;
-                    font-weight: 500;
+                .banner-content {
+                    min-height: 200px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
                 }
                 
-                .urlshortener-timer {
+                .timer-section {
+                    background: var(--bg-secondary);
+                    border-radius: 15px;
+                    padding: 30px;
                     text-align: center;
-                    margin: 30px 0;
+                    margin: 40px 0;
+                    border: 1px solid var(--border-color);
+                    box-shadow: 0 4px 12px var(--shadow);
+                }
+                
+                .timer-title {
+                    font-size: 1.5rem;
+                    font-weight: 600;
+                    margin-bottom: 20px;
+                    color: var(--text-primary);
+                }
+                
+                .timer-display {
+                    font-size: 3rem;
+                    font-weight: 700;
+                    color: var(--accent-color);
+                    margin: 20px 0;
+                    font-family: 'Courier New', monospace;
+                }
+                
+                .timer-progress {
+                    width: 100%;
+                    height: 8px;
+                    background: var(--bg-tertiary);
+                    border-radius: 4px;
+                    overflow: hidden;
+                    margin: 20px 0;
+                }
+                
+                .timer-progress-bar {
+                    height: 100%;
+                    background: linear-gradient(90deg, var(--accent-color), var(--success-color));
+                    border-radius: 4px;
+                    transition: width 0.1s linear;
+                }
+                
+                .continue-button {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 10px;
+                    padding: 15px 30px;
+                    background: linear-gradient(135deg, var(--accent-color), var(--success-color));
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 50px;
+                    font-weight: 600;
+                    font-size: 1.1rem;
+                    transition: all 0.3s ease;
+                    border: none;
+                    cursor: pointer;
+                    opacity: 0.5;
+                    pointer-events: none;
+                }
+                
+                .continue-button.active {
+                    opacity: 1;
+                    pointer-events: all;
+                }
+                
+                .continue-button:hover.active {
+                    transform: translateY(-2px);
+                    box-shadow: 0 8px 20px rgba(0,123,255,0.3);
+                }
+                
+                .stats-section {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                    gap: 20px;
+                    margin: 40px 0;
+                }
+                
+                .stat-card {
+                    background: var(--bg-secondary);
                     padding: 20px;
-                    background: var(--bg-primary);
-                    border-radius: 8px;
-                    border: 2px solid var(--border-color);
+                    border-radius: 12px;
+                    text-align: center;
+                    border: 1px solid var(--border-color);
+                    box-shadow: 0 2px 8px var(--shadow);
                 }
                 
-                .urlshortener-countdown {
+                .stat-number {
                     font-size: 2rem;
-                    font-weight: bold;
-                    color: var(--warning-color);
-                    margin-bottom: 10px;
+                    font-weight: 700;
+                    color: var(--accent-color);
                 }
                 
-                .urlshortener-button {
+                .stat-label {
+                    color: var(--text-secondary);
+                    font-size: 0.9rem;
+                    margin-top: 5px;
+                }
+                
+                .footer-section {
+                    background: var(--bg-secondary);
+                    border-radius: 15px;
+                    padding: 25px;
+                    text-align: center;
+                    margin-top: 40px;
+                    border: 1px solid var(--border-color);
+                    box-shadow: 0 4px 12px var(--shadow);
+                }
+                
+                .footer-links {
+                    display: flex;
+                    justify-content: center;
+                    gap: 20px;
+                    flex-wrap: wrap;
+                    margin-top: 15px;
+                }
+                
+                .footer-link {
+                    color: var(--text-secondary);
+                    text-decoration: none;
+                    padding: 8px 16px;
+                    border-radius: 20px;
+                    background: var(--bg-tertiary);
+                    transition: all 0.3s ease;
+                }
+                
+                .footer-link:hover {
                     background: var(--accent-color);
                     color: white;
-                    border: none;
-                    padding: 15px 30px;
-                    border-radius: 8px;
-                    font-size: 1.1rem;
-                    font-weight: 600;
-                    cursor: pointer;
-                    transition: all 0.3s ease;
-                    display: inline-block;
-                    text-decoration: none;
-                    min-width: 200px;
                 }
                 
-                .urlshortener-button:hover {
-                    background: #0056b3;
-                    transform: translateY(-1px);
-                    box-shadow: 0 4px 8px rgba(0,123,255,0.3);
-                }
-                
-                .urlshortener-button:disabled {
-                    background: #6c757d;
-                    cursor: not-allowed;
-                    opacity: 0.6;
-                }
-                
-                .urlshortener-button.success {
-                    background: var(--success-color);
-                }
-                
-                .urlshortener-button.success:hover {
-                    background: #1e7e34;
-                }
-                
-                .urlshortener-dark-toggle {
+                .theme-toggle {
                     position: fixed;
                     top: 20px;
                     right: 20px;
+                    width: 50px;
+                    height: 50px;
+                    border-radius: 50%;
                     background: var(--bg-secondary);
-                    border: 2px solid var(--border-color);
+                    border: 1px solid var(--border-color);
                     color: var(--text-primary);
-                    padding: 10px 15px;
-                    border-radius: 25px;
                     cursor: pointer;
-                    font-size: 0.9rem;
-                    font-weight: 500;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 1.2rem;
                     transition: all 0.3s ease;
+                    box-shadow: 0 4px 12px var(--shadow);
                     z-index: 1000;
                 }
                 
-                .urlshortener-dark-toggle:hover {
-                    background: var(--accent-color);
-                    color: white;
-                    border-color: var(--accent-color);
+                .theme-toggle:hover {
+                    transform: scale(1.1);
                 }
                 
-                .urlshortener-progress {
-                    width: 100%;
-                    height: 6px;
-                    background: var(--border-color);
-                    border-radius: 3px;
-                    margin: 20px 0;
-                    overflow: hidden;
-                }
-                
-                .urlshortener-progress-bar {
-                    height: 100%;
-                    background: linear-gradient(90deg, var(--accent-color), var(--success-color));
-                    transition: width 0.3s ease;
-                    border-radius: 3px;
-                }
-                
-                /* Responsive Design */
                 @media (max-width: 768px) {
-                    .urlshortener-ads-wrapper {
-                        padding: 10px;
-                    }
-                    
-                    .urlshortener-container {
-                        padding: 20px;
-                        margin: 0;
-                    }
-                    
-                    .urlshortener-title {
-                        font-size: 1.5rem;
-                    }
-                    
-                    .urlshortener-banner {
-                        margin: 15px 0;
-                        padding: 15px;
-                    }
-                    
-                    .urlshortener-button {
-                        width: 100%;
-                        padding: 12px 20px;
-                    }
-                    
-                    .urlshortener-dark-toggle {
-                        top: 10px;
-                        right: 10px;
-                        padding: 8px 12px;
-                        font-size: 0.8rem;
-                    }
+                    .ads-container { padding: 15px; }
+                    .header-title { font-size: 2rem; }
+                    .header-subtitle { font-size: 1rem; }
+                    .timer-display { font-size: 2.5rem; }
+                    .ads-grid { grid-template-columns: 1fr; gap: 20px; }
+                    .stats-section { grid-template-columns: repeat(2, 1fr); }
+                    .footer-links { flex-direction: column; gap: 10px; }
                 }
                 
-                /* Banner content styling */
-                .urlshortener-banner iframe,
-                .urlshortener-banner img {
-                    max-width: 100%;
-                    height: auto;
-                    border-radius: 4px;
-                }
-                
-                .urlshortener-banner-content {
-                    position: relative;
-                    z-index: 2;
-                }
-                
-                /* Loading animation */
-                .urlshortener-loading {
-                    display: inline-block;
-                    width: 20px;
-                    height: 20px;
-                    border: 2px solid rgba(255,255,255,0.3);
-                    border-radius: 50%;
-                    border-top-color: white;
-                    animation: spin 1s ease-in-out infinite;
-                    margin-right: 8px;
-                }
-                
-                @keyframes spin {
-                    to { transform: rotate(360deg); }
+                @media (max-width: 480px) {
+                    .header-title { font-size: 1.8rem; }
+                    .timer-display { font-size: 2rem; }
+                    .stats-section { grid-template-columns: 1fr; }
+                    .post-info { flex-direction: column; gap: 8px; }
                 }
             </style>
-            
-            <button class="urlshortener-dark-toggle" onclick="toggleDarkMode()">
-                🌙 Modo Escuro
+        </head>
+        <body>
+            <button class="theme-toggle" onclick="toggleTheme()" title="Alternar tema">
+                🌙
             </button>
             
-            <div class="urlshortener-container">
-                <div class="urlshortener-header">
-                    <h1 class="urlshortener-title">🎯 Seu download está quase pronto!</h1>
-                    <p class="urlshortener-subtitle">Aguarde alguns segundos e visualize nossos parceiros</p>
-                    <div class="urlshortener-progress">
-                        <div class="urlshortener-progress-bar" id="progress-bar" style="width: 0%"></div>
+            <div class="ads-container">
+                <!-- Header Section -->
+                <div class="header-section">
+                    <h1 class="header-title"><?php echo get_the_title(); ?></h1>
+                    <p class="header-subtitle">Aguarde alguns segundos antes de continuar</p>
+                    <div class="post-info">
+                        <span>📄 <?php echo get_bloginfo('name'); ?></span>
+                        <span>🔗 URL: <?php echo esc_html($original_url); ?></span>
                     </div>
                 </div>
                 
-                <!-- Step 1 -->
-                <div id="step1" class="urlshortener-step active">
-                    <h2 style="text-align: center; margin-bottom: 25px;">📋 Etapa 1 de 2</h2>
-                    
-                    <?php foreach ($selected_step1 as $index => $banner): ?>
-                        <div class="urlshortener-banner" onclick="trackBannerClick(1, <?php echo $index; ?>)">
-                            <div class="urlshortener-banner-label">
-                                📢 Anúncio <?php echo $banner['banner_type']; ?> #<?php echo $banner['position']; ?>
+                <!-- Ads Section -->
+                <div class="ads-grid">
+                    <?php if (!empty($selected_step1)): ?>
+                        <?php foreach ($selected_step1 as $index => $banner): ?>
+                            <div class="banner-card" onclick="trackBannerClick(1, <?php echo $index; ?>)" data-banner-id="<?php echo $banner['id']; ?>">
+                                <div class="banner-content">
+                                    <?php echo wp_kses_post($banner['code']); ?>
+                                </div>
                             </div>
-                            <div class="urlshortener-banner-content">
-                                <?php echo wp_kses_post($banner['code']); ?>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <!-- Fallback banners -->
+                        <div class="banner-card">
+                            <div class="banner-content">
+                                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; text-align: center; color: white; border-radius: 10px; font-family: Arial, sans-serif;">
+                                    <h3 style="margin: 0 0 15px 0;">🎯 Anúncio Premium</h3>
+                                    <p style="margin: 0; opacity: 0.9;">Clique aqui para saber mais</p>
+                                </div>
                             </div>
                         </div>
-                    <?php endforeach; ?>
-                    
-                    <div class="urlshortener-timer">
-                        <div class="urlshortener-countdown" id="countdown1">5</div>
-                        <p>segundos para continuar</p>
-                        <button class="urlshortener-button" id="continue-btn" disabled onclick="goToStep2()">
-                            Continuar para Etapa 2
-                        </button>
+                        <div class="banner-card">
+                            <div class="banner-content">
+                                <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 40px; text-align: center; color: white; border-radius: 10px; font-family: Arial, sans-serif;">
+                                    <h3 style="margin: 0 0 15px 0;">💎 Oferta Especial</h3>
+                                    <p style="margin: 0; opacity: 0.9;">Não perca esta oportunidade</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="banner-card">
+                            <div class="banner-content">
+                                <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 40px; text-align: center; color: white; border-radius: 10px; font-family: Arial, sans-serif;">
+                                    <h3 style="margin: 0 0 15px 0;">🚀 Promoção Limitada</h3>
+                                    <p style="margin: 0; opacity: 0.9;">Últimas unidades disponíveis</p>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+                </div>
+                
+                <!-- Timer Section -->
+                <div class="timer-section">
+                    <h2 class="timer-title">⏰ Aguarde para continuar</h2>
+                    <div class="timer-display" id="countdown"><?php echo $timer_duration; ?></div>
+                    <div class="timer-progress">
+                        <div class="timer-progress-bar" id="progress-bar"></div>
+                    </div>
+                    <button class="continue-button" id="continue-btn" onclick="continueToUrl()">
+                        <span>🚀</span>
+                        <span>Continuar</span>
+                    </button>
+                </div>
+                
+                <!-- Stats Section -->
+                <div class="stats-section">
+                    <div class="stat-card">
+                        <div class="stat-number">3</div>
+                        <div class="stat-label">Anúncios Exibidos</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number"><?php echo $timer_duration; ?>s</div>
+                        <div class="stat-label">Tempo Restante</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">1</div>
+                        <div class="stat-label">Etapa Atual</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">2</div>
+                        <div class="stat-label">Total de Etapas</div>
                     </div>
                 </div>
                 
-                <!-- Step 2 -->
-                <div id="step2" class="urlshortener-step">
-                    <h2 style="text-align: center; margin-bottom: 25px;">🎯 Etapa 2 de 2</h2>
-                    
-                    <?php foreach ($selected_step2 as $index => $banner): ?>
-                        <div class="urlshortener-banner" onclick="trackBannerClick(2, <?php echo $index; ?>)">
-                            <div class="urlshortener-banner-label">
-                                📢 Anúncio <?php echo $banner['banner_type']; ?> #<?php echo $banner['position']; ?> - Clique aqui
-                            </div>
-                            <div class="urlshortener-banner-content">
-                                <?php echo wp_kses_post($banner['code']); ?>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                    
-                    <div class="urlshortener-timer">
-                        <div class="urlshortener-countdown" id="countdown2"><?php echo $timer_duration; ?></div>
-                        <p id="step2-message">segundos para liberar o download</p>
-                        <a href="<?php echo esc_url($original_url); ?>" class="urlshortener-button success" id="download-btn" style="pointer-events: none; opacity: 0.6;">
-                            <span class="urlshortener-loading" id="download-loading" style="display: none;"></span>
-                            📖 Continuar Leitura
-                        </a>
+                <!-- Footer Section -->
+                <div class="footer-section">
+                    <p style="color: var(--text-secondary); margin-bottom: 10px;">
+                        🔒 Conteúdo seguro • 🚀 Redirecionamento automático
+                    </p>
+                    <div class="footer-links">
+                        <a href="<?php echo home_url(); ?>" class="footer-link">🏠 Início</a>
+                        <a href="<?php echo esc_html($original_url); ?>" class="footer-link">🔗 URL Original</a>
+                        <a href="#" onclick="toggleTheme()" class="footer-link">🌙 Tema</a>
                     </div>
                 </div>
             </div>
             
             <script>
-                let step1Timer = 5;
-                let step2Timer = <?php echo $timer_duration; ?>;
+                // Configuration
+                let timeLeft = <?php echo $timer_duration; ?>;
+                let totalTime = <?php echo $timer_duration; ?>;
+                let clickedBanners = [];
                 let currentStep = 1;
-                let bannerClicked = false;
+                let forcedClick = <?php echo $forced_click ? 'true' : 'false'; ?>;
                 
-                // Dark mode functionality
-                function toggleDarkMode() {
-                    const container = document.getElementById('urlshortener-ads-container');
-                    const toggle = document.querySelector('.urlshortener-dark-toggle');
+                // DOM Elements
+                const countdownEl = document.getElementById('countdown');
+                const progressBar = document.getElementById('progress-bar');
+                const continueBtn = document.getElementById('continue-btn');
+                const themeToggle = document.querySelector('.theme-toggle');
+                
+                // Update timer display
+                function updateTimer() {
+                    countdownEl.textContent = timeLeft;
+                    const progressPercent = ((totalTime - timeLeft) / totalTime) * 100;
+                    progressBar.style.width = progressPercent + '%';
                     
-                    if (container.getAttribute('data-theme') === 'dark') {
-                        container.removeAttribute('data-theme');
-                        toggle.textContent = '🌙 Modo Escuro';
-                        localStorage.setItem('urlshortener-theme', 'light');
-                    } else {
-                        container.setAttribute('data-theme', 'dark');
-                        toggle.textContent = '☀️ Modo Claro';
-                        localStorage.setItem('urlshortener-theme', 'dark');
+                    if (timeLeft <= 0) {
+                        continueBtn.classList.add('active');
+                        countdownEl.textContent = '0';
+                        progressBar.style.width = '100%';
+                        return;
                     }
+                    
+                    timeLeft--;
+                    setTimeout(updateTimer, 1000);
+                }
+                
+                // Track banner clicks
+                function trackBannerClick(step, index) {
+                    const bannerCard = event.currentTarget;
+                    const bannerId = bannerCard.getAttribute('data-banner-id');
+                    
+                    // Visual feedback
+                    bannerCard.style.transform = 'scale(0.98)';
+                    bannerCard.style.boxShadow = '0 2px 8px var(--success-color)';
+                    bannerCard.style.borderLeft = '4px solid var(--success-color)';
+                    
+                    setTimeout(() => {
+                        bannerCard.style.transform = 'translateY(-5px)';
+                    }, 150);
+                    
+                    // Track click for analytics
+                    clickedBanners.push({
+                        step: step,
+                        index: index,
+                        bannerId: bannerId,
+                        timestamp: Date.now()
+                    });
+                    
+                    console.log('Banner clicked:', clickedBanners);
+                    
+                    // Send analytics to server (if configured)
+                    sendAnalytics({
+                        action: 'banner_click',
+                        step: step,
+                        banner_id: bannerId,
+                        session_id: getCookie('urlshortener_session')
+                    });
+                }
+                
+                // Continue to URL
+                function continueToUrl() {
+                    if (!continueBtn.classList.contains('active')) {
+                        return;
+                    }
+                    
+                    // Send completion analytics
+                    sendAnalytics({
+                        action: 'completed_step1',
+                        clicked_banners: clickedBanners,
+                        session_id: getCookie('urlshortener_session')
+                    });
+                    
+                    // Redirect to original URL
+                    window.location.href = '<?php echo esc_js($original_url); ?>';
+                }
+                
+                // Theme toggle
+                function toggleTheme() {
+                    const html = document.documentElement;
+                    const currentTheme = html.getAttribute('data-theme');
+                    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                    
+                    html.setAttribute('data-theme', newTheme);
+                    localStorage.setItem('theme', newTheme);
+                    
+                    themeToggle.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+                }
+                
+                // Send analytics to server
+                function sendAnalytics(data) {
+                    // Only send if we have proper API configuration
+                    try {
+                        fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: new URLSearchParams({
+                                action: 'urlshortener_analytics',
+                                nonce: '<?php echo wp_create_nonce('urlshortener_analytics'); ?>',
+                                data: JSON.stringify(data)
+                            })
+                        }).catch(error => {
+                            console.log('Analytics error:', error);
+                        });
+                    } catch (error) {
+                        console.log('Analytics not available:', error);
+                    }
+                }
+                
+                // Get cookie value
+                function getCookie(name) {
+                    const value = "; " + document.cookie;
+                    const parts = value.split("; " + name + "=");
+                    if (parts.length == 2) return parts.pop().split(";").shift();
+                    return null;
                 }
                 
                 // Initialize theme
                 function initTheme() {
-                    const savedTheme = localStorage.getItem('urlshortener-theme');
-                    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                    
-                    if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
-                        document.getElementById('urlshortener-ads-container').setAttribute('data-theme', 'dark');
-                        document.querySelector('.urlshortener-dark-toggle').textContent = '☀️ Modo Claro';
-                    }
+                    const savedTheme = localStorage.getItem('theme') || 'dark';
+                    document.documentElement.setAttribute('data-theme', savedTheme);
+                    themeToggle.textContent = savedTheme === 'dark' ? '☀️' : '🌙';
                 }
                 
-                // Timer functions
-                function updateCountdown() {
-                    if (currentStep === 1) {
-                        document.getElementById('countdown1').textContent = step1Timer;
-                        document.getElementById('progress-bar').style.width = ((5 - step1Timer) / 5 * 50) + '%';
-                        
-                        if (step1Timer <= 0) {
-                            document.getElementById('continue-btn').disabled = false;
-                            document.getElementById('continue-btn').style.opacity = '1';
-                            document.getElementById('continue-btn').style.pointerEvents = 'auto';
-                        } else {
-                            step1Timer--;
-                        }
-                    } else if (currentStep === 2) {
-                        document.getElementById('countdown2').textContent = step2Timer;
-                        document.getElementById('progress-bar').style.width = (50 + ((<?php echo $timer_duration; ?> - step2Timer) / <?php echo $timer_duration; ?> * 50)) + '%';
-                        
-                        if (step2Timer <= 0) {
-                            enableDownload();
-                        } else {
-                            step2Timer--;
-                        }
-                    }
-                }
-                
-                function goToStep2() {
-                    document.getElementById('step1').classList.remove('active');
-                    document.getElementById('step2').classList.add('active');
-                    currentStep = 2;
-                }
-                
-                function enableDownload() {
-                    const downloadBtn = document.getElementById('download-btn');
-                    downloadBtn.style.opacity = '1';
-                    downloadBtn.style.pointerEvents = 'auto';
-                    document.getElementById('step2-message').textContent = 'Download liberado! Clique no botão abaixo.';
-                }
-                
-                function trackBannerClick(step, index) {
-                    const banner = event.currentTarget;
-                    banner.classList.add('clicked');
+                // Initialize everything
+                document.addEventListener('DOMContentLoaded', function() {
+                    initTheme();
+                    updateTimer();
                     
-                    // Visual feedback
-                    const label = banner.querySelector('.urlshortener-banner-label');
-                    if (label) {
-                        label.textContent = label.textContent.replace('Clique aqui', '✅ Clicado!');
-                    }
-                    
-                    bannerClicked = true;
-                    
-                    // Add click effect
-                    banner.style.transform = 'scale(0.98)';
-                    setTimeout(() => {
-                        banner.style.transform = 'translateY(-2px)';
-                    }, 150);
-                }
-                
-                // Start countdown
-                const countdownInterval = setInterval(updateCountdown, 1000);
-                
-                // Initialize theme on load
-                initTheme();
-                
-                // Handle download click
-                document.getElementById('download-btn').addEventListener('click', function(e) {
-                    if (this.style.pointerEvents === 'none') {
-                        e.preventDefault();
-                        return false;
-                    }
-                    
-                    // Show loading
-                    const loading = document.getElementById('download-loading');
-                    loading.style.display = 'inline-block';
-                    this.innerHTML = '<span class="urlshortener-loading"></span> Redirecionando...';
-                    
-                    // Clear interval
-                    clearInterval(countdownInterval);
-                });
-                
-                // Listen for system theme changes
-                window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
-                    if (!localStorage.getItem('urlshortener-theme')) {
-                        const container = document.getElementById('urlshortener-ads-container');
-                        const toggle = document.querySelector('.urlshortener-dark-toggle');
-                        
-                        if (e.matches) {
-                            container.setAttribute('data-theme', 'dark');
-                            toggle.textContent = '☀️ Modo Claro';
-                        } else {
-                            container.removeAttribute('data-theme');
-                            toggle.textContent = '🌙 Modo Escuro';
-                        }
-                    }
+                    console.log('URLShortener Ads Page initialized');
+                    console.log('Original URL:', '<?php echo esc_js($original_url); ?>');
+                    console.log('Timer Duration:', totalTime);
+                    console.log('Forced Click:', forcedClick);
                 });
             </script>
-        </div>
+        </body>
+        </html>
         <?php
         return ob_get_clean();
+    }
+    
+    // Handle analytics AJAX request
+    public function handle_analytics_ajax() {
+        // Verify nonce
+        if (!wp_verify_nonce($_POST['nonce'], 'urlshortener_analytics')) {
+            wp_die('Invalid nonce');
+        }
+        
+        $data = json_decode(stripslashes($_POST['data']), true);
+        
+        // Log analytics data (you can expand this to send to your backend API)
+        error_log('URLShortener Analytics: ' . json_encode($data));
+        
+        // Send to backend API if configured
+        $settings = get_option('urlshortener_settings');
+        if (!empty($settings['api_url']) && !empty($settings['api_token'])) {
+            $api_url = rtrim($settings['api_url'], '/');
+            if (substr($api_url, -4) === '/api') {
+                $api_url = substr($api_url, 0, -4);
+            }
+            
+            wp_remote_post($api_url . '/api/analytics', array(
+                'headers' => array(
+                    'Authorization' => 'Bearer ' . $settings['api_token'],
+                    'Content-Type' => 'application/json'
+                ),
+                'body' => json_encode($data),
+                'timeout' => 10
+            ));
+        }
+        
+        wp_die('success');
+    }
+    
+    public function init_analytics_ajax() {
+        add_action('wp_ajax_urlshortener_analytics', array($this, 'handle_analytics_ajax'));
+        add_action('wp_ajax_nopriv_urlshortener_analytics', array($this, 'handle_analytics_ajax'));
     }
     
     public function enqueue_frontend_assets() {
         if (is_single() && isset($_COOKIE['urlshortener_session'])) {
             wp_enqueue_script('jquery');
-        }
-    }
-    
-    // Intercept posts to show ads when session exists
-    public function intercept_posts_for_ads() {
-        // Debug mode
-        define('URLSHORTENER_DEBUG', true);
-        
-        if (URLSHORTENER_DEBUG) {
-            error_log('URLShortener Debug: intercept_posts_for_ads called');
-            error_log('URLShortener Debug: is_single=' . (is_single() ? 'true' : 'false'));
-            error_log('URLShortener Debug: is_admin=' . (is_admin() ? 'true' : 'false'));
-        }
-        
-        // Only intercept single posts
-        if (!is_single() || is_admin()) {
-            if (URLSHORTENER_DEBUG) {
-                error_log('URLShortener Debug: Not intercepting - not single post or is admin');
-            }
-            return;
-        }
-        
-        // Check if we have an active ads session
-        if (!isset($_COOKIE['urlshortener_session'])) {
-            if (URLSHORTENER_DEBUG) {
-                error_log('URLShortener Debug: No session cookie found');
-            }
-            return;
-        }
-        
-        $session_key = sanitize_text_field($_COOKIE['urlshortener_session']);
-        if (URLSHORTENER_DEBUG) {
-            error_log('URLShortener Debug: Session key: ' . $session_key);
-        }
-        
-        $url_data = get_transient($session_key);
-        if (URLSHORTENER_DEBUG) {
-            error_log('URLShortener Debug: URL data: ' . json_encode($url_data));
-        }
-        
-        // Check if session is valid and not expired
-        if (!$url_data || !is_array($url_data)) {
-            if (URLSHORTENER_DEBUG) {
-                error_log('URLShortener Debug: Invalid session data, cleaning up');
-            }
-            // Clean up invalid cookie
-            setcookie('urlshortener_session', '', time() - 3600, '/');
-            return;
-        }
-        
-        // Check if session is expired (2 minutes)
-        if (isset($url_data['expires']) && time() > $url_data['expires']) {
-            if (URLSHORTENER_DEBUG) {
-                error_log('URLShortener Debug: Session expired, cleaning up');
-            }
-            // Clean up expired session
-            delete_transient($session_key);
-            setcookie('urlshortener_session', '', time() - 3600, '/');
-            return;
-        }
-        
-        // We have a valid session - generate and display ads page
-        if (URLSHORTENER_DEBUG) {
-            error_log('URLShortener Debug: Valid session found, displaying ads');
-        }
-        
-        // Generate ads page directly
-        $this->display_ads_page_direct($url_data);
-        exit;
-    }
-    
-    // Add tracking code to posts with ads
-    public function add_ads_tracking() {
-        if (!is_single() || !isset($_COOKIE['urlshortener_session'])) {
-            return;
-        }
-        
-        $session_key = sanitize_text_field($_COOKIE['urlshortener_session']);
-        $url_data = get_transient($session_key);
-        
-        if ($url_data && is_array($url_data)) {
-            echo '<meta name="urlshortener-session" content="' . esc_attr($session_key) . '">';
-            echo '<meta name="urlshortener-step" content="' . esc_attr($url_data['step'] ?? 1) . '">';
-        }
-    }
-    
-    // Display ads page directly (new responsive design)
-    public function display_ads_page_direct($url_data) {
-        if (URLSHORTENER_DEBUG) {
-            error_log('URLShortener Debug: display_ads_page_direct called');
-        }
-        
-        // Get random post for metadata
-        $random_post = $this->get_random_post();
-        if (URLSHORTENER_DEBUG) {
-            error_log('URLShortener Debug: Random post: ' . ($random_post ? $random_post->ID : 'none'));
-        }
-        
-        // Extract post metadata for display
-        $post_title = $random_post ? get_the_title($random_post->ID) : get_bloginfo('name');
-        $post_excerpt = $random_post ? wp_trim_words(get_the_excerpt($random_post->ID), 25) : get_bloginfo('description');
-        $post_thumbnail = $random_post && has_post_thumbnail($random_post->ID) ? get_the_post_thumbnail_url($random_post->ID, 'large') : '';
-        $post_date = $random_post ? get_the_date('d/m/Y H:i', $random_post->ID) : date('d/m/Y H:i');
-        $post_author = $random_post ? get_the_author_meta('display_name', $random_post->post_author) : 'Admin';
-        $post_url = $random_post ? get_permalink($random_post->ID) : home_url();
-        
-        // Current step
-        $current_step = $url_data['step'] ?? 1;
-        
-        if (URLSHORTENER_DEBUG) {
-            error_log('URLShortener Debug: Post metadata extracted');
-        }
-        
-        // For now, display a simple debug page
-        ?>
-        <!DOCTYPE html>
-        <html lang="pt-BR">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title><?php echo esc_html($post_title); ?> - Anúncios</title>
-            <style>
-                body { background: #1a1a1a; color: #fff; font-family: Arial, sans-serif; padding: 20px; }
-                .container { max-width: 800px; margin: 0 auto; }
-                .debug { background: #333; padding: 20px; border-radius: 8px; margin: 20px 0; }
-                .success { color: #28a745; }
-                .error { color: #dc3545; }
-                .info { color: #007bff; }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>🎯 Sistema de Anúncios Ativo</h1>
-                <p>Página interceptada com sucesso! Os anúncios serão exibidos aqui.</p>
-                
-                <div class="debug">
-                    <h3>🐛 Debug Information</h3>
-                    <div class="success">✅ WordPress hook funcionando</div>
-                    <div class="success">✅ Sessão válida encontrada</div>
-                    <div class="info">📝 Post: <?php echo esc_html($post_title); ?></div>
-                    <div class="info">📄 URL Original: <?php echo esc_html($url_data['original_url'] ?? 'N/A'); ?></div>
-                    <div class="info">⏰ Step: <?php echo $current_step; ?></div>
-                    <div class="info">🕒 Sessão expira: <?php echo date('Y-m-d H:i:s', $url_data['expires'] ?? time()); ?></div>
-                </div>
-                
-                <div class="debug">
-                    <h3>📊 Próximos Passos</h3>
-                    <p>✅ Sistema base funcionando<br>
-                    🔄 Implementar página de anúncios completa<br>
-                    🔄 Integração com servidor de anúncios<br>
-                    🔄 Sistema de analytics</p>
-                </div>
-                
-                <div style="margin-top: 30px;">
-                    <a href="<?php echo esc_url($url_data['original_url'] ?? '#'); ?>" 
-                       style="background: #007bff; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">
-                       📖 Ir para URL Original (Teste)
-                    </a>
-                </div>
-            </div>
-        </body>
-        </html>
-        <?php
-    }
-    
-    // Create physical post.php file to handle requests
-    public function create_post_php_handler() {
-        $post_php_path = ABSPATH . 'post.php';
-        
-        // Embed the post handler content directly (fix for file path error)
-        $post_php_content = '<?php
-/**
- * URL Shortener AdSite Handler - Loading Page
- * Loading page with session creation and redirect to random post
- */
-
-// Debug mode
-define(\'URLSHORTENER_DEBUG\', true);
-
-// Error reporting for debug
-if (URLSHORTENER_DEBUG) {
-    error_reporting(E_ALL);
-    ini_set(\'display_errors\', 1);
-    ini_set(\'log_errors\', 1);
-    
-    // Custom error handler to display errors in HTML
-    function custom_error_handler($errno, $errstr, $errfile, $errline) {
-        $error_msg = "<div style=\"background: #dc3545; color: white; padding: 15px; margin: 10px; border-radius: 5px; font-family: monospace;\">";
-        $error_msg .= "<strong>PHP Error:</strong> $errstr<br>";
-        $error_msg .= "<strong>File:</strong> $errfile<br>";
-        $error_msg .= "<strong>Line:</strong> $errline<br>";
-        $error_msg .= "<strong>Error Code:</strong> $errno";
-        $error_msg .= "</div>";
-        echo $error_msg;
-        return true;
-    }
-    set_error_handler(\'custom_error_handler\');
-}
-
-// Debug function
-function debug_log($message) {
-    if (URLSHORTENER_DEBUG) {
-        error_log(\'URLShortener Debug: \' . $message);
-    }
-}
-
-debug_log(\'Starting post.php handler\');
-
-// Prevent direct access without parameters
-if (!isset($_GET[\'u\']) || empty($_GET[\'u\'])) {
-    debug_log(\'No u parameter found\');
-    http_response_code(404);
-    echo \'<!DOCTYPE html><html><head><title>404 Not Found</title></head><body><h1>Not Found</h1><p>The requested resource was not found on this server.</p></body></html>\';
-    exit;
-}
-
-// Load WordPress
-debug_log(\'Loading WordPress...\');
-if (!defined(\'ABSPATH\')) {
-    try {
-        require_once __DIR__ . \'/wp-load.php\';
-        debug_log(\'WordPress loaded successfully\');
-    } catch (Exception $e) {
-        debug_log(\'Error loading WordPress: \' . $e->getMessage());
-        if (URLSHORTENER_DEBUG) {
-            echo \'<pre>Error loading WordPress: \' . $e->getMessage() . \'</pre>\';
-        }
-        exit;
-    }
-}
-
-// Sanitize and decode the URL
-$encoded_url = sanitize_text_field($_GET[\'u\']);
-debug_log(\'Encoded URL: \' . $encoded_url);
-
-$original_url = base64_decode($encoded_url);
-debug_log(\'Decoded URL: \' . $original_url);
-
-if (!$original_url) {
-    // If decoding fails, treat as plain URL
-    $original_url = sanitize_url($_GET[\'u\']);
-    debug_log(\'Using plain URL: \' . $original_url);
-}
-
-if (!$original_url) {
-    debug_log(\'No valid URL found, redirecting to home\');
-    wp_redirect(home_url());
-    exit;
-}
-
-// Create session with 2 minute expiration
-debug_log(\'Creating session...\');
-$session_key = \'urlshortener_\' . md5($original_url . time() . wp_create_nonce(\'urlshortener\'));
-debug_log(\'Session key: \' . $session_key);
-
-$url_data = array(
-    \'original_url\' => $original_url,
-    \'encoded_url\' => $encoded_url,
-    \'timestamp\' => time(),
-    \'expires\' => time() + (2 * 60), // 2 minutes
-    \'show_ads\' => true,
-    \'source\' => \'post_php_handler\',
-    \'step\' => 1,
-    \'session_id\' => $session_key
-);
-debug_log(\'URL data created: \' . json_encode($url_data));
-
-// Store in transient for 2 minutes
-$transient_result = set_transient($session_key, $url_data, 2 * 60);
-debug_log(\'Transient set result: \' . ($transient_result ? \'success\' : \'failed\'));
-
-$cookie_result = setcookie(\'urlshortener_session\', $session_key, time() + (2 * 60), \'/\', \'\', is_ssl(), true);
-debug_log(\'Cookie set result: \' . ($cookie_result ? \'success\' : \'failed\'));
-
-// Get random post for redirect
-debug_log(\'Getting random post...\');
-$posts = get_posts(array(
-    \'numberposts\' => 1,
-    \'post_status\' => \'publish\',
-    \'orderby\' => \'rand\',
-    \'post_type\' => \'post\'
-));
-debug_log(\'Found posts: \' . count($posts));
-
-$redirect_url = !empty($posts) ? get_permalink($posts[0]->ID) : home_url();
-debug_log(\'Redirect URL: \' . $redirect_url);
-
-error_log(\'URLShortener: Session created, redirecting to: \' . $redirect_url);
-?>
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Carregando...</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        body {
-            background: #1a1a1a;
-            color: #ffffff;
-            font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            overflow: hidden;
-        }
-        
-        .loading-container {
-            text-align: center;
-            animation: fadeIn 0.5s ease;
-        }
-        
-        .spinner {
-            width: 80px;
-            height: 80px;
-            border: 4px solid #333;
-            border-top: 4px solid #007bff;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 30px;
-        }
-        
-        .loading-text {
-            font-size: 1.5rem;
-            font-weight: 600;
-            margin-bottom: 10px;
-            background: linear-gradient(45deg, #007bff, #28a745);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        
-        .loading-subtitle {
-            color: #888;
-            font-size: 1rem;
-            margin-bottom: 20px;
-        }
-        
-        .progress-bar {
-            width: 300px;
-            height: 6px;
-            background: #333;
-            border-radius: 3px;
-            overflow: hidden;
-            margin: 20px auto;
-        }
-        
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #007bff, #28a745);
-            border-radius: 3px;
-            width: 0%;
-            animation: progressFill 2s ease-out forwards;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        @keyframes progressFill {
-            0% { width: 0%; }
-            100% { width: 100%; }
-        }
-        
-        @media (max-width: 768px) {
-            .loading-text { font-size: 1.2rem; }
-            .loading-subtitle { font-size: 0.9rem; }
-            .progress-bar { width: 250px; }
-        }
-    </style>
-</head>
-<body>
-    <div class="loading-container">
-        <div class="spinner"></div>
-        <div class="loading-text">Preparando conteúdo...</div>
-        <div class="loading-subtitle">Aguarde alguns instantes</div>
-        <div class="progress-bar">
-            <div class="progress-fill"></div>
-        </div>
-        
-        <?php if (URLSHORTENER_DEBUG): ?>
-        <div class="debug-info" style="margin-top: 30px; padding: 20px; background: #333; border-radius: 8px; font-family: monospace; font-size: 12px; text-align: left; max-width: 600px; margin-left: auto; margin-right: auto;">
-            <h3 style="color: #ffc107; margin-bottom: 10px;">🐛 Debug Info</h3>
-            <div style="color: #28a745;">✅ WordPress loaded: <?php echo defined(\'ABSPATH\') ? \'Yes\' : \'No\'; ?></div>
-            <div style="color: #007bff;">📝 Session key: <?php echo substr($session_key, 0, 20) . \'...\'; ?></div>
-            <div style="color: #007bff;">🔗 Original URL: <?php echo esc_html($original_url); ?></div>
-            <div style="color: #007bff;">📦 Encoded URL: <?php echo esc_html($encoded_url); ?></div>
-            <div style="color: #28a745;">🍪 Cookie set: <?php echo $cookie_result ? \'Yes\' : \'No\'; ?></div>
-            <div style="color: #28a745;">💾 Transient set: <?php echo $transient_result ? \'Yes\' : \'No\'; ?></div>
-            <div style="color: #ffc107;">📄 Posts found: <?php echo count($posts); ?></div>
-            <div style="color: #ffc107;">🔀 Redirect URL: <?php echo esc_html($redirect_url); ?></div>
-            <div style="color: #dc3545;">⏰ Session expires: <?php echo date(\'Y-m-d H:i:s\', time() + (2 * 60)); ?></div>
-        </div>
-        <?php endif; ?>
-    </div>
-    
-    <script>
-        <?php if (URLSHORTENER_DEBUG): ?>
-        console.log(\'URLShortener Debug: Loading page initialized\');
-        console.log(\'URLShortener Debug: Session key:\', \'<?php echo substr($session_key, 0, 20); ?>...\');
-        console.log(\'URLShortener Debug: Original URL:\', \'<?php echo esc_js($original_url); ?>\');
-        console.log(\'URLShortener Debug: Redirect URL:\', \'<?php echo esc_js($redirect_url); ?>\');
-        console.log(\'URLShortener Debug: Will redirect in 2 seconds...\');
-        <?php endif; ?>
-        
-        // Redirect after 2 seconds
-        setTimeout(function() {
-            <?php if (URLSHORTENER_DEBUG): ?>
-            console.log(\'URLShortener Debug: Redirecting now...\');
-            <?php endif; ?>
-            window.location.href = \'<?php echo esc_js($redirect_url); ?>\';
-        }, 2000);
-    </script>
-</body>
-</html>
-<?php exit; ?>';
-        
-        // Create the file with proper permissions
-        $result = file_put_contents($post_php_path, $post_php_content);
-        
-        if ($result !== false) {
-            // Set proper permissions
-            chmod($post_php_path, 0644);
-            update_option('urlshortener_post_php_version', URLSHORTENER_VERSION);
-            error_log('URLShortener: Created post.php handler at ' . $post_php_path);
-        } else {
-            error_log('URLShortener: Failed to create post.php handler');
         }
     }
     
