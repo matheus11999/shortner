@@ -162,6 +162,65 @@ class DatabaseManager {
         FOREIGN KEY (site_id) REFERENCES client_sites (id)
       )`,
       
+      `CREATE TABLE IF NOT EXISTS session_analytics (
+        id SERIAL PRIMARY KEY,
+        session_id VARCHAR(255) UNIQUE NOT NULL,
+        client_site_id VARCHAR(100),
+        original_url TEXT NOT NULL,
+        ip_address INET,
+        user_agent TEXT,
+        referrer TEXT,
+        start_time TIMESTAMP DEFAULT NOW(),
+        step1_start TIMESTAMP,
+        step1_end TIMESTAMP,
+        step2_start TIMESTAMP,
+        step2_end TIMESTAMP,
+        total_duration INTEGER DEFAULT 0,
+        step1_duration INTEGER DEFAULT 0,
+        step2_duration INTEGER DEFAULT 0,
+        completion_rate INTEGER DEFAULT 0,
+        total_clicks INTEGER DEFAULT 0,
+        clicks_step1 INTEGER DEFAULT 0,
+        clicks_step2 INTEGER DEFAULT 0,
+        status VARCHAR(50) DEFAULT 'started',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )`,
+      
+      `CREATE TABLE IF NOT EXISTS banner_clicks (
+        id SERIAL PRIMARY KEY,
+        session_id VARCHAR(255) NOT NULL,
+        client_site_id VARCHAR(100),
+        banner_id VARCHAR(100) NOT NULL,
+        step INTEGER NOT NULL,
+        index_position INTEGER,
+        timestamp BIGINT NOT NULL,
+        ip_address INET,
+        user_agent TEXT,
+        screen_resolution VARCHAR(50),
+        current_url TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )`,
+      
+      `CREATE TABLE IF NOT EXISTS client_analytics (
+        id SERIAL PRIMARY KEY,
+        client_site_id VARCHAR(100) NOT NULL,
+        date DATE NOT NULL,
+        unique_users INTEGER DEFAULT 0,
+        total_sessions INTEGER DEFAULT 0,
+        completed_sessions INTEGER DEFAULT 0,
+        total_clicks INTEGER DEFAULT 0,
+        step1_clicks INTEGER DEFAULT 0,
+        step2_clicks INTEGER DEFAULT 0,
+        avg_session_duration DECIMAL(10,2) DEFAULT 0,
+        completion_rate DECIMAL(5,2) DEFAULT 0,
+        impressions INTEGER DEFAULT 0,
+        cpm_earnings DECIMAL(10,2) DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(client_site_id, date)
+      )`,
+      
       `CREATE TABLE IF NOT EXISTS unique_visitors (
         id SERIAL PRIMARY KEY,
         session_id VARCHAR(255) UNIQUE NOT NULL,

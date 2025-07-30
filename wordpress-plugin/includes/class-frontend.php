@@ -2005,7 +2005,7 @@ class URLShortener_Frontend {
                 
                 // Send analytics to server
                 function sendAnalytics(data) {
-                    // Only send if we have proper API configuration
+                    // Send to WordPress AJAX
                     try {
                         fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
                             method: 'POST',
@@ -2018,11 +2018,41 @@ class URLShortener_Frontend {
                                 data: JSON.stringify(data)
                             })
                         }).catch(error => {
-                            console.log('Analytics error:', error);
+                            console.log('WordPress Analytics error:', error);
                         });
                     } catch (error) {
-                        console.log('Analytics not available:', error);
+                        console.log('WordPress Analytics not available:', error);
                     }
+                    
+                    // Also send to backend API if configured
+                    <?php
+                    $settings = get_option('urlshortener_settings');
+                    if (!empty($settings['api_url']) && !empty($settings['api_token'])):
+                        $api_url = rtrim($settings['api_url'], '/');
+                        if (substr($api_url, -4) === '/api') {
+                            $api_url = substr($api_url, 0, -4);
+                        }
+                    ?>
+                    try {
+                        fetch('<?php echo esc_js($api_url); ?>/api/analytics/wordpress', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': 'Bearer <?php echo esc_js($settings['api_token']); ?>',
+                                'X-API-Token': '<?php echo esc_js($settings['api_token']); ?>'
+                            },
+                            body: JSON.stringify(data)
+                        }).then(response => response.json())
+                          .then(result => {
+                              console.log('✅ Backend Analytics recorded:', result);
+                          })
+                          .catch(error => {
+                              console.log('Backend Analytics error:', error);
+                          });
+                    } catch (error) {
+                        console.log('Backend API not available:', error);
+                    }
+                    <?php endif; ?>
                 }
                 
                 // Get cookie value

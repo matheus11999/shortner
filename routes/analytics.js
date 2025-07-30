@@ -5,6 +5,16 @@ const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Middleware para log de analytics
+const logAnalytics = (req, res, next) => {
+    console.log(`📊 Analytics: ${req.method} ${req.path}`, {
+        body: req.body,
+        headers: req.headers,
+        ip: req.ip
+    });
+    next();
+};
+
 // Track analytics data - usado pelos AdSites
 router.post('/track', async (req, res) => {
   try {
@@ -65,6 +75,337 @@ router.post('/track', async (req, res) => {
     console.error('Analytics tracking error:', error);
     res.status(500).json({ error: 'Failed to track analytics' });
   }
+});
+
+// NEW ANALYTICS SYSTEM - Receive analytics from WordPress
+router.post('/wordpress', logAnalytics, async (req, res) => {
+    try {
+        const data = req.body;
+        const ip = req.ip || req.connection.remoteAddress;
+        
+        console.log('📊 WordPress Analytics:', data);
+
+        // Handle different analytics actions
+        switch (data.action) {
+            case 'session_started':
+                await handleSessionStarted(data, ip);
+                break;
+            case 'banner_click':
+                await handleBannerClick(data, ip);
+                break;
+            case 'step1_completed':
+                await handleStepCompleted(data, 1);
+                break;
+            case 'session_completed':
+                await handleSessionCompleted(data);
+                break;
+            default:
+                console.log(`Unknown analytics action: ${data.action}`);
+        }
+
+        res.json({ success: true, message: 'Analytics recorded' });
+    } catch (error) {
+        console.error('❌ Error processing WordPress analytics:', error);
+        res.status(500).json({ error: 'Failed to process analytics' });
+    }
+});
+
+// Handle session started
+async function handleSessionStarted(data, ip) {
+    const query = `
+        INSERT INTO session_analytics (
+            session_id, client_site_id, original_url, ip_address, 
+            user_agent, referrer, start_time, step1_start, status
+        ) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW(), 'started')
+        ON CONFLICT (session_id) DO UPDATE SET
+            updated_at = NOW()
+        RETURNING id
+    `;
+
+    const values = [
+        data.session_id,
+        data.client_site_id || null,
+        data.original_url || '',
+        ip,
+        data.user_agent || '',
+        data.referrer || '',
+    ];
+
+    const result = await database.query(query, values);
+    console.log('✅ Session started recorded:', result.rows[0]);
+}
+
+// Handle banner click
+async function handleBannerClick(data, ip) {
+    // Insert banner click
+    const clickQuery = `
+        INSERT INTO banner_clicks (
+            session_id, client_site_id, banner_id, step, index_position,
+            timestamp, ip_address, user_agent, screen_resolution, current_url
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        RETURNING id
+    `;
+
+    const clickValues = [
+        data.session_id,
+        data.client_site_id || null,
+        data.banner_id,
+        data.step,
+        data.index || 0,
+        data.timestamp || Date.now(),
+        ip,
+        data.user_agent || '',
+        data.screen_resolution || '',
+        data.current_url || ''
+    ];
+
+    const clickResult = await database.query(clickQuery, clickValues);
+
+    // Update session analytics  
+    const updateQuery = `
+        UPDATE session_analytics 
+        SET total_clicks = total_clicks + 1,
+            ${data.step === 1 ? 'clicks_step1' : 'clicks_step2'} = ${data.step === 1 ? 'clicks_step1' : 'clicks_step2'} + 1,
+            updated_at = NOW()
+        WHERE session_id = $1
+    `;
+
+    await database.query(updateQuery, [data.session_id]);
+    console.log('✅ Banner click recorded:', clickResult.rows[0]);
+}
+
+// Handle step completed
+async function handleStepCompleted(data, step) {
+    const updateField = step === 1 ? 
+        'step1_end = NOW(), step1_duration = $2' : 
+        'step2_end = NOW(), step2_duration = $2';
+
+    const query = `
+        UPDATE session_analytics 
+        SET ${updateField}, status = $3, updated_at = NOW()
+        WHERE session_id = $1
+    `;
+
+    const values = [
+        data.session_id,
+        data.duration || 0,
+        step === 1 ? 'step1_completed' : 'step2_completed'
+    ];
+
+    await database.query(query, values);
+    console.log(`✅ Step ${step} completion recorded`);
+}
+
+// Handle session completed
+async function handleSessionCompleted(data) {
+    const query = `
+        UPDATE session_analytics 
+        SET step2_end = NOW(),
+            total_duration = $2,
+            step1_duration = $3,
+            step2_duration = $4,
+            completion_rate = $5,
+            total_clicks = $6,
+            clicks_step1 = $7,
+            clicks_step2 = $8,
+            status = 'completed',
+            updated_at = NOW()
+        WHERE session_id = $1
+        RETURNING *
+    `;
+
+    const values = [
+        data.session_id,
+        data.total_duration || 0,
+        data.step1_duration || 0,
+        data.step2_duration || 0,
+        data.completion_rate || 100,
+        data.total_clicks || 0,
+        data.clicks_step1 || 0,
+        data.clicks_step2 || 0
+    ];
+
+    const result = await database.query(query, values);
+    
+    // Update daily client analytics
+    if (data.client_site_id) {
+        await updateDailyClientAnalytics(data);
+    }
+    
+    console.log('✅ Session completed recorded:', result.rows[0]);
+}
+
+// Update daily client analytics
+async function updateDailyClientAnalytics(data) {
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        
+        const query = `
+            INSERT INTO client_analytics (
+                client_site_id, date, unique_users, total_sessions, completed_sessions,
+                total_clicks, step1_clicks, step2_clicks, avg_session_duration,
+                completion_rate, impressions
+            ) VALUES ($1, $2, 1, 1, 1, $3, $4, $5, $6, $7, 1)
+            ON CONFLICT (client_site_id, date) DO UPDATE SET
+                total_sessions = client_analytics.total_sessions + 1,
+                completed_sessions = client_analytics.completed_sessions + 1,
+                total_clicks = client_analytics.total_clicks + $3,
+                step1_clicks = client_analytics.step1_clicks + $4,
+                step2_clicks = client_analytics.step2_clicks + $5,
+                avg_session_duration = (
+                    (client_analytics.avg_session_duration * (client_analytics.total_sessions - 1) + $6) / 
+                    client_analytics.total_sessions
+                ),
+                completion_rate = (
+                    client_analytics.completed_sessions::DECIMAL / client_analytics.total_sessions * 100
+                ),
+                impressions = client_analytics.impressions + 1,
+                updated_at = NOW()
+            RETURNING *
+        `;
+
+        const values = [
+            data.client_site_id,
+            today,
+            data.total_clicks || 0,
+            data.clicks_step1 || 0,
+            data.clicks_step2 || 0,
+            Math.round((data.total_duration || 0) / 1000), // Convert to seconds
+            data.completion_rate || 100
+        ];
+
+        const result = await database.query(query, values);
+        console.log('✅ Daily client analytics updated:', result.rows[0]);
+    } catch (error) {
+        console.error('❌ Error updating daily client analytics:', error);
+    }
+}
+
+// Get analytics for a client site
+router.get('/client/:siteId', authenticateToken, async (req, res) => {
+    try {
+        const { siteId } = req.params;
+        const { startDate, endDate } = req.query;
+
+        // Get daily analytics
+        let query = `
+            SELECT * FROM client_analytics 
+            WHERE client_site_id = $1
+        `;
+        let values = [siteId];
+
+        if (startDate && endDate) {
+            query += ` AND date BETWEEN $2 AND $3`;
+            values.push(startDate, endDate);
+        }
+
+        query += ` ORDER BY date DESC LIMIT 30`;
+
+        const dailyStats = await database.query(query, values);
+
+        // Get recent sessions
+        const sessionQuery = `
+            SELECT session_id, original_url, start_time, total_duration, 
+                   completion_rate, total_clicks, status
+            FROM session_analytics 
+            WHERE client_site_id = $1 
+            ORDER BY start_time DESC 
+            LIMIT 100
+        `;
+
+        const sessions = await database.query(sessionQuery, [siteId]);
+
+        // Calculate totals
+        const totalsQuery = `
+            SELECT 
+                COUNT(DISTINCT session_id) as total_sessions,
+                COUNT(DISTINCT session_id) FILTER (WHERE status = 'completed') as completed_sessions,
+                SUM(total_clicks) as total_clicks,
+                AVG(total_duration) as avg_duration,
+                SUM(impressions) as total_impressions,
+                SUM(cpm_earnings) as total_earnings
+            FROM client_analytics 
+            WHERE client_site_id = $1
+        `;
+
+        const totals = await database.query(totalsQuery, [siteId]);
+
+        res.json({
+            daily_stats: dailyStats.rows,
+            recent_sessions: sessions.rows,
+            totals: totals.rows[0] || {}
+        });
+
+    } catch (error) {
+        console.error('❌ Error fetching client analytics:', error);
+        res.status(500).json({ error: 'Failed to fetch analytics' });
+    }
+});
+
+// Get all analytics summary (admin)
+router.get('/summary', authenticateToken, async (req, res) => {
+    try {
+        // Get overview stats
+        const overviewQuery = `
+            SELECT 
+                COUNT(DISTINCT client_site_id) as total_clients,
+                COUNT(DISTINCT session_id) as total_sessions,
+                COUNT(DISTINCT session_id) FILTER (WHERE status = 'completed') as completed_sessions,
+                SUM(total_clicks) as total_clicks,
+                AVG(total_duration) as avg_duration,
+                SUM(impressions) as total_impressions,
+                SUM(cpm_earnings) as total_earnings
+            FROM client_analytics 
+            WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+        `;
+
+        const overview = await database.query(overviewQuery);
+
+        // Get top clients
+        const topClientsQuery = `
+            SELECT 
+                client_site_id,
+                SUM(total_sessions) as sessions,
+                SUM(completed_sessions) as completed,
+                SUM(total_clicks) as clicks,
+                SUM(impressions) as impressions,
+                SUM(cpm_earnings) as earnings
+            FROM client_analytics 
+            WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+            GROUP BY client_site_id 
+            ORDER BY sessions DESC 
+            LIMIT 10
+        `;
+
+        const topClients = await database.query(topClientsQuery);
+
+        // Get daily trends
+        const trendsQuery = `
+            SELECT 
+                date,
+                SUM(total_sessions) as sessions,
+                SUM(completed_sessions) as completed,
+                SUM(total_clicks) as clicks,
+                SUM(impressions) as impressions,
+                SUM(cpm_earnings) as earnings
+            FROM client_analytics 
+            WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+            GROUP BY date 
+            ORDER BY date DESC
+        `;
+
+        const trends = await database.query(trendsQuery);
+
+        res.json({
+            overview: overview.rows[0] || {},
+            top_clients: topClients.rows,
+            daily_trends: trends.rows
+        });
+
+    } catch (error) {
+        console.error('❌ Error fetching analytics summary:', error);
+        res.status(500).json({ error: 'Failed to fetch analytics summary' });
+    }
 });
 
 // Dashboard geral para admin e cliente
