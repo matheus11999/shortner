@@ -1203,6 +1203,7 @@ class URLShortener_Frontend {
         $settings = get_option('urlshortener_settings');
         
         if (empty($settings['api_url']) || empty($settings['api_token']) || !isset($settings['connected_adsite'])) {
+            error_log('URLShortener: Missing settings - API URL: ' . (!empty($settings['api_url']) ? 'OK' : 'MISSING') . ', Token: ' . (!empty($settings['api_token']) ? 'OK' : 'MISSING') . ', AdSite: ' . (isset($settings['connected_adsite']) ? 'OK' : 'MISSING'));
             return false;
         }
         
@@ -1214,7 +1215,10 @@ class URLShortener_Frontend {
             $api_url = substr($api_url, 0, -4);
         }
         
-        $response = wp_remote_get($api_url . '/api/admin/wordpress/banner-configs/' . $adsite_id, array(
+        $api_endpoint = $api_url . '/api/admin/wordpress/banner-configs/' . $adsite_id;
+        error_log('URLShortener: Calling API endpoint: ' . $api_endpoint);
+        
+        $response = wp_remote_get($api_endpoint, array(
             'headers' => array(
                 'Authorization' => 'Bearer ' . $settings['api_token'],
                 'X-API-Token' => $settings['api_token']
@@ -1223,20 +1227,30 @@ class URLShortener_Frontend {
         ));
         
         if (is_wp_error($response)) {
+            error_log('URLShortener: API call failed: ' . $response->get_error_message());
             return false;
         }
         
+        $response_code = wp_remote_retrieve_response_code($response);
+        error_log('URLShortener: API response code: ' . $response_code);
+        
         $body = wp_remote_retrieve_body($response);
         $banner_configs = json_decode($body, true);
+        
+        // Check if JSON decode was successful and we have valid data
+        if (!$banner_configs || !is_array($banner_configs)) {
+            error_log('URLShortener: Invalid banner configs from API: ' . $body);
+            return false;
+        }
         
         // Separate by steps
         $step1_banners = array();
         $step2_banners = array();
         
         foreach ($banner_configs as $banner) {
-            if ($banner['step'] == 1) {
+            if (isset($banner['step']) && $banner['step'] == 1) {
                 $step1_banners[] = $banner;
-            } else {
+            } elseif (isset($banner['step']) && $banner['step'] == 2) {
                 $step2_banners[] = $banner;
             }
         }
@@ -1293,9 +1307,23 @@ class URLShortener_Frontend {
         $timer_duration = 5; // Default timer
         $forced_click = false; // Default behavior
         
-        // Select random banners (max 3 per step)
-        $selected_step1 = array_slice(array_rand(array_flip($step1_banners), min(3, count($step1_banners))), 0, 3);
-        $selected_step2 = array_slice(array_rand(array_flip($step2_banners), min(3, count($step2_banners))), 0, 3);
+        // Select random banners (max 3 per step) - fix for empty array error
+        $selected_step1 = array();
+        $selected_step2 = array();
+        
+        if (!empty($step1_banners) && is_array($step1_banners)) {
+            // Shuffle and take up to 3 banners
+            $shuffled_step1 = $step1_banners;
+            shuffle($shuffled_step1);
+            $selected_step1 = array_slice($shuffled_step1, 0, min(3, count($shuffled_step1)));
+        }
+        
+        if (!empty($step2_banners) && is_array($step2_banners)) {
+            // Shuffle and take up to 3 banners  
+            $shuffled_step2 = $step2_banners;
+            shuffle($shuffled_step2);
+            $selected_step2 = array_slice($shuffled_step2, 0, min(3, count($shuffled_step2)));
+        }
         
         ob_start();
         ?>
