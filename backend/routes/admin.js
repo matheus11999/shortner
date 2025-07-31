@@ -540,7 +540,7 @@ router.get('/wordpress-plugin-version', authenticateAdsiteToken, async (req, res
     
     // Sempre incrementar a versão se force_update for true
     // ou adicionar timestamp para forçar update mesmo com mesma versão
-    const baseVersion = '1.8.2';
+    const baseVersion = '1.8.3';
     const version = force_update === 'true' 
       ? `${baseVersion}.${Date.now()}` 
       : baseVersion;
@@ -562,6 +562,21 @@ router.get('/wordpress-plugin-version', authenticateAdsiteToken, async (req, res
 router.get('/wordpress-plugin-changelog', authenticateAdsiteToken, async (req, res) => {
   try {
     const changelog = `
+= 1.8.3 =
+* 🔧 CRÍTICO CORRIGIDO: Erro 400 em admin-ajax.php do WordPress
+* 🔧 CRÍTICO CORRIGIDO: Analytics agora prioriza backend e torna WordPress opcional
+* 🔧 CRÍTICO CORRIGIDO: Sistema de analytics completamente funcional
+* ⚡ MELHORADO: WordPress analytics como sistema secundário (opcional)
+* ⚡ MELHORADO: Logs mais limpos sem erros de requisição
+
+= 1.8.2 =
+* 🚀 IMPLEMENTADO: Sistema de force update para plugin WordPress
+* 🚀 IMPLEMENTADO: Download com validação de token AdSite
+* 🚀 IMPLEMENTADO: Sistema de ZIP em tempo real com segurança
+* 🔧 CORRIGIDO: Analytics PostgreSQL completamente funcional
+* 🔧 CORRIGIDO: Sistema de auto-update aprimorado
+* ⚡ MELHORADO: Versionamento dinâmico com timestamp
+
 = 1.8.1 =
 * 🔧 CRÍTICO CORRIGIDO: Erro de sintaxe PHP que causava crash do site
 * 🔧 CRÍTICO CORRIGIDO: Parse error "Unmatched '}'" em class-admin.php:562

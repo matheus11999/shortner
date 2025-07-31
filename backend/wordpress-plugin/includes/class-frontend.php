@@ -2005,26 +2005,7 @@ class URLShortener_Frontend {
                 
                 // Send analytics to server
                 function sendAnalytics(data) {
-                    // Send to WordPress AJAX
-                    try {
-                        fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/x-www-form-urlencoded',
-                            },
-                            body: new URLSearchParams({
-                                action: 'urlshortener_analytics',
-                                nonce: '<?php echo wp_create_nonce('urlshortener_analytics'); ?>',
-                                data: JSON.stringify(data)
-                            })
-                        }).catch(error => {
-                            console.log('WordPress Analytics error:', error);
-                        });
-                    } catch (error) {
-                        console.log('WordPress Analytics not available:', error);
-                    }
-                    
-                    // Also send to backend API if configured
+                    // Primary: Send to backend API (main analytics system)
                     <?php
                     $settings = get_option('urlshortener_settings');
                     if (!empty($settings['api_url']) && !empty($settings['api_token'])):
@@ -2052,7 +2033,29 @@ class URLShortener_Frontend {
                     } catch (error) {
                         console.log('Backend API not available:', error);
                     }
+                    <?php else: ?>
+                    console.log('⚠️ Backend API not configured - Analytics disabled');
                     <?php endif; ?>
+                    
+                    // Optional: WordPress analytics (secondary - can fail silently)
+                    try {
+                        fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: new URLSearchParams({
+                                action: 'urlshortener_analytics',
+                                nonce: '<?php echo wp_create_nonce('urlshortener_analytics'); ?>',
+                                data: JSON.stringify(data)
+                            })
+                        }).catch(error => {
+                            // Silently ignore WordPress analytics errors
+                            console.log('WordPress Analytics (optional):', error.message);
+                        });
+                    } catch (error) {
+                        // Silently ignore if WordPress analytics not available
+                    }
                 }
                 
                 // Get cookie value
