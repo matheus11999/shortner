@@ -1,0 +1,311 @@
+.urlshortener-status-card,
+.urlshortener-info-card {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 20px;
+    margin: 20px 0;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+}
+
+.urlshortener-status-card h3,
+.urlshortener-info-card h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 16px;
+    color: #23282d;
+}
+
+.connection-status {
+    padding: 15px;
+    border-radius: 4px;
+    margin: 10px 0;
+    font-size: 14px;
+    font-weight: 500;
+    display: block;
+}
+
+.connection-status.connected {
+    background: #d1e7dd;
+    color: #0f5132;
+    border: 1px solid #badbcc;
+}
+
+.connection-status.disconnected {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c2c7;
+}
+
+.connection-status .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    vertical-align: text-top;
+    margin-right: 5px;
+}
+
+.button-group {
+    display: flex;
+    gap: 10px;
+    margin: 15px 0;
+    flex-wrap: wrap;
+}
+
+.button-group .button {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+#sync-status p.success {
+    color: #155724;
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+    padding: 8px 12px;
+    border-radius: 4px;
+}
+
+#sync-status p.error {
+    color: #721c24;
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    padding: 8px 12px;
+    border-radius: 4px;
+}
+
+.wp-list-table .status-success {
+    color: #155724;
+    background-color: #d4edda;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.wp-list-table .status-error {
+    color: #721c24;
+    background-color: #f8d7da;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.button.unsaved-changes {
+    background-color: #dc3232;
+    border-color: #dc3232;
+    color: #fff;
+}
+
+.button.unsaved-changes:hover {
+    background-color: #c02323;
+    border-color: #c02323;
+}
+
+.form-table th {
+    width: 200px;
+}
+
+.form-table .description {
+    font-style: italic;
+    color: #666;
+    margin-top: 5px;
+}
+
+.urlshortener-admin-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.urlshortener-admin-header h1 {
+    margin-right: 20px;
+}
+
+.urlshortener-admin-header .version {
+    background: #f0f0f1;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    color: #646970;
+}
+
+.urlshortener-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.urlshortener-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.urlshortener-stat-item {
+    background: #f9f9f9;
+    padding: 15px;
+    border-radius: 4px;
+    text-align: center;
+    border-left: 4px solid #2271b1;
+}
+
+.urlshortener-stat-item .stat-number {
+    font-size: 24px;
+    font-weight: 600;
+    color: #2271b1;
+    display: block;
+}
+
+.urlshortener-stat-item .stat-label {
+    font-size: 12px;
+    color: #646970;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.urlshortener-loading {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #2271b1;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Spin animation for dashicons */
+.dashicons.spin {
+    animation: spin 1s linear infinite;
+}
+
+/* Test AdSite button styling */
+#test-adsite {
+    background: #007cba;
+    border-color: #007cba;
+    color: white;
+    margin-left: 10px;
+}
+
+#test-adsite:hover {
+    background: #005a87;
+    border-color: #004a73;
+}
+
+#test-adsite:disabled {
+    background: #6c757d;
+    border-color: #6c757d;
+}
+
+/* Test WordPress button styling */
+#test-wordpress {
+    background: #28a745 !important;
+    border-color: #28a745 !important;
+    color: white !important;
+    margin-left: 10px;
+}
+
+#test-wordpress:hover {
+    background: #218838 !important;
+    border-color: #1e7e34 !important;
+}
+
+#test-wordpress:disabled {
+    background: #6c757d !important;
+    border-color: #6c757d !important;
+}
+
+/* Test result styling */
+#test-result {
+    margin-top: 15px;
+}
+
+#test-result .notice {
+    margin: 0;
+}
+
+#test-result .button {
+    margin-top: 10px;
+}
+
+/* Update check styling */
+#check-updates {
+    background: #17a2b8;
+    border-color: #17a2b8;
+    color: white;
+}
+
+#check-updates:hover {
+    background: #138496;
+    border-color: #117a8b;
+}
+
+/* Auto-refresh indicator */
+.connection-status.connected::after {
+    content: " (auto-refresh ativo)";
+    font-size: 11px;
+    font-weight: normal;
+    opacity: 0.7;
+}
+
+.notice.inline {
+    margin: 10px 0;
+    padding: 8px 12px;
+}
+
+.settings-section {
+    border-bottom: 1px solid #e1e1e1;
+    padding-bottom: 20px;
+    margin-bottom: 20px;
+}
+
+.settings-section:last-child {
+    border-bottom: none;
+}
+
+.urlshortener-help-text {
+    background: #f0f6fc;
+    border: 1px solid #c6d5e7;
+    border-radius: 4px;
+    padding: 15px;
+    margin: 15px 0;
+}
+
+.urlshortener-help-text h4 {
+    margin-top: 0;
+    color: #0073aa;
+}
+
+.urlshortener-help-text ul {
+    margin-bottom: 0;
+}
+
+@media (max-width: 768px) {
+    .urlshortener-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .urlshortener-stats {
+        grid-template-columns: 1fr;
+    }
+    
+    .form-table th,
+    .form-table td {
+        display: block;
+        width: 100%;
+    }
+    
+    .form-table th {
+        padding-bottom: 5px;
+    }
+}
